@@ -1,0 +1,20 @@
+services:
+  clanstvo:
+    build: .
+    container_name: radioklub-clanstvo
+    ports:
+      - "127.0.0.1:8000:8000"  # Samo lokalno – za zunanji dostop dodajte Nginx reverse proxy
+    volumes:
+      - ./data:/app/data
+    environment:
+      - SECRET_KEY=${SECRET_KEY:-zamenjajte-z-dolgim-nakljucnim-nizom}
+      - ADMIN_GESLO=${ADMIN_GESLO:-admin123}
+      - KLUB_IME=${KLUB_IME:-}
+      - KLUB_OZNAKA=${KLUB_OZNAKA:-}
+      - OKOLJE=produkcija
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/login')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

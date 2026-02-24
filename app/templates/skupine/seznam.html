@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Skupine – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-people-fill me-2 text-primary"></i>Skupine</h4>
+  {% if is_editor %}
+  <a href="/skupine/nova" class="btn btn-primary btn-sm">
+    <i class="bi bi-plus-circle me-1"></i>Nova skupina
+  </a>
+  {% endif %}
+</div>
+
+{% if skupine %}
+<div class="row g-3">
+  {% for s in skupine %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-body">
+        <h5 class="card-title mb-1">
+          <a href="/skupine/{{ s.id }}" class="text-decoration-none">{{ s.ime }}</a>
+        </h5>
+        {% if s.opis %}
+        <p class="text-muted small mb-2">{{ s.opis }}</p>
+        {% endif %}
+        <span class="badge bg-secondary">
+          <i class="bi bi-person me-1"></i>{{ s.clani|length }} članov
+        </span>
+      </div>
+      <div class="card-footer d-flex gap-2 justify-content-end py-2">
+        <a href="/skupine/{{ s.id }}" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-eye me-1"></i>Upravljaj
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="text-center text-muted py-5">
+  <i class="bi bi-people" style="font-size:3rem"></i>
+  <p class="mt-3">Ni še nobene skupine.</p>
+  {% if is_editor %}
+  <a href="/skupine/nova" class="btn btn-primary">
+    <i class="bi bi-plus-circle me-1"></i>Ustvari prvo skupino
+  </a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

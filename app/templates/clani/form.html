@@ -1,0 +1,170 @@
+{% extends "base.html" %}
+{% block title %}{% if clan %}Uredi člana{% else %}Nov član{% endif %} – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/clani">Člani</a></li>
+      {% if clan %}
+      <li class="breadcrumb-item"><a href="/clani/{{ clan.id }}">{{ clan.priimek }} {{ clan.ime }}</a></li>
+      <li class="breadcrumb-item active">Uredi</li>
+      {% else %}
+      <li class="breadcrumb-item active">Nov član</li>
+      {% endif %}
+    </ol>
+  </nav>
+</div>
+
+<div class="card">
+  <div class="card-header bg-primary text-white">
+    <i class="bi bi-person-{% if clan %}pencil{% else %}plus{% endif %}-fill me-2"></i>
+    {% if clan %}Uredi člana: {{ clan.priimek }} {{ clan.ime }}{% else %}Dodaj novega člana{% endif %}
+  </div>
+  <div class="card-body">
+    {% if napaka %}
+    <div class="alert alert-danger"><i class="bi bi-exclamation-triangle me-2"></i>{{ napaka }}</div>
+    {% endif %}
+    <form method="post" action="{% if clan %}/clani/{{ clan.id }}/uredi{% else %}/clani/nov{% endif %}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+      <div class="row g-3">
+        <!-- Osnovna identifikacija -->
+        <div class="col-12"><h6 class="text-muted border-bottom pb-1">Osnovna identifikacija</h6></div>
+
+        <div class="col-md-4">
+          <label class="form-label">Priimek <span class="text-danger">*</span></label>
+          <input type="text" name="priimek" class="form-control" required value="{{ clan.priimek if clan else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Ime <span class="text-danger">*</span></label>
+          <input type="text" name="ime" class="form-control" required value="{{ clan.ime if clan else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Klicni znak</label>
+          <input type="text" name="klicni_znak" class="form-control text-uppercase" value="{{ clan.klicni_znak if clan and clan.klicni_znak else '' }}" placeholder="npr. S59XYZ">
+        </div>
+
+        <div class="col-md-4">
+          <label class="form-label">Tip članstva <span class="text-danger">*</span></label>
+          <select name="tip_clanstva" class="form-select" id="tipClanstva">
+            {% for t in tipi_clanstva %}
+            <option value="{{ t }}" {% if clan and clan.tip_clanstva == t %}selected{% elif not clan and t == 'Osebni' %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-4" id="nosilciDiv">
+          <label class="form-label">Klicni znak nosilci (druž. čl.)</label>
+          <input type="text" name="klicni_znak_nosilci" class="form-control text-uppercase"
+            value="{{ clan.klicni_znak_nosilci if clan and clan.klicni_znak_nosilci else '' }}"
+            placeholder="Klicni znak glavnega člana">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Operaterski razred</label>
+          <select name="operaterski_razred" class="form-select">
+            <option value="">–</option>
+            {% for r in operaterski_razredi %}
+            {% if r %}
+            <option value="{{ r }}" {% if clan and clan.operaterski_razred == r %}selected{% endif %}>{{ r }}</option>
+            {% endif %}
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Naslov -->
+        <div class="col-12"><h6 class="text-muted border-bottom pb-1 mt-2">Naslov</h6></div>
+
+        <div class="col-md-6">
+          <label class="form-label">Ulica in hišna številka</label>
+          <input type="text" name="naslov_ulica" class="form-control" value="{{ clan.naslov_ulica if clan and clan.naslov_ulica else '' }}">
+        </div>
+        <div class="col-md-6">
+          <label class="form-label">Poštna številka in kraj</label>
+          <input type="text" name="naslov_posta" class="form-control" value="{{ clan.naslov_posta if clan and clan.naslov_posta else '' }}" placeholder="npr. 1380 Cerknica">
+        </div>
+
+        <!-- Kontakt -->
+        <div class="col-12"><h6 class="text-muted border-bottom pb-1 mt-2">Kontaktni podatki</h6></div>
+
+        <div class="col-md-4">
+          <label class="form-label">Mobilni telefon</label>
+          <input type="tel" name="mobilni_telefon" class="form-control" value="{{ clan.mobilni_telefon if clan and clan.mobilni_telefon else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">Telefon doma</label>
+          <input type="tel" name="telefon_doma" class="form-control" value="{{ clan.telefon_doma if clan and clan.telefon_doma else '' }}">
+        </div>
+        <div class="col-md-4">
+          <label class="form-label">E-pošta</label>
+          <input type="email" name="elektronska_posta" class="form-control" value="{{ clan.elektronska_posta if clan and clan.elektronska_posta else '' }}">
+        </div>
+
+        <!-- Pravni in administrativni podatki -->
+        <div class="col-12"><h6 class="text-muted border-bottom pb-1 mt-2">Administrativni podatki</h6></div>
+
+        <div class="col-md-3">
+          <label class="form-label">Veljavnost RD (licence)</label>
+          <input type="date" name="veljavnost_rd" class="form-control"
+            value="{{ clan.veljavnost_rd.isoformat() if clan and clan.veljavnost_rd else '' }}">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">ES številka (ZRS)</label>
+          <input type="number" name="es_stevilka" class="form-control"
+            value="{{ clan.es_stevilka if clan and clan.es_stevilka else '' }}" placeholder="ZRS register">
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Soglasje OP</label>
+          <select name="soglasje_op" class="form-select">
+            <option value="">–</option>
+            <option value="DA" {% if clan and clan.soglasje_op == 'DA' %}selected{% endif %}>DA</option>
+            <option value="NE" {% if clan and clan.soglasje_op == 'NE' %}selected{% endif %}>NE</option>
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label">Izjava</label>
+          <select name="izjava" class="form-select">
+            <option value="">–</option>
+            <option value="DA" {% if clan and clan.izjava == 'DA' %}selected{% endif %}>DA</option>
+            <option value="NE" {% if clan and clan.izjava == 'NE' %}selected{% endif %}>NE</option>
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Status člana</label>
+          <select name="aktiven" class="form-select">
+            <option value="da" {% if not clan or clan.aktiven %}selected{% endif %}>Aktiven</option>
+            <option value="ne" {% if clan and not clan.aktiven %}selected{% endif %}>Neaktiven</option>
+          </select>
+        </div>
+
+        <div class="col-md-6">
+          <label class="form-label">Opombe</label>
+          <textarea name="opombe" class="form-control" rows="2">{{ clan.opombe if clan and clan.opombe else '' }}</textarea>
+        </div>
+
+        <!-- Gumbi -->
+        <div class="col-12 mt-3 d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-save me-1"></i>Shrani
+          </button>
+          <a href="{% if clan %}/clani/{{ clan.id }}{% else %}/clani{% endif %}" class="btn btn-outline-secondary">
+            <i class="bi bi-x me-1"></i>Prekliči
+          </a>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Pokaži/skrij polje za nosilci glede na tip članstva
+function posodobiNosilci() {
+  const tip = document.getElementById('tipClanstva').value;
+  document.getElementById('nosilciDiv').style.display = (tip === 'Družinski') ? '' : 'none';
+}
+document.getElementById('tipClanstva').addEventListener('change', posodobiNosilci);
+posodobiNosilci();
+</script>
+{% endblock %}

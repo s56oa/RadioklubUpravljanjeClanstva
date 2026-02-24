@@ -1,0 +1,269 @@
+{% extends "base.html" %}
+{% block title %}Izvoz in uvoz – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-arrow-down-up me-2 text-primary"></i>Izvoz in uvoz podatkov</h4>
+
+<!-- Seštevki plačil -->
+{% if sestevki %}
+<div class="card mb-4">
+  <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+    <span><i class="bi bi-bar-chart-fill me-2"></i>Pregled plačil članarine po letu</span>
+  </div>
+  <div class="card-body p-0">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Leto</th>
+          <th class="text-end">Število plačnikov</th>
+          <th class="text-end">Skupni znesek (€)</th>
+          <th class="text-muted small">Brez zneska</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in sestevki %}
+        <tr {% if loop.first %}class="fw-semibold"{% endif %}>
+          <td>{{ r.leto }}</td>
+          <td class="text-end">{{ r.st_placnikov }}</td>
+          <td class="text-end">
+            {% if r.skupaj > 0 %}
+              {{ "%.2f"|format(r.skupaj) }} €
+            {% else %}
+              <span class="text-muted">–</span>
+            {% endif %}
+          </td>
+          <td class="text-muted small">
+            {% if r.brez_zneska > 0 %}{{ r.brez_zneska }} brez zneska{% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<div class="row g-3">
+
+  <!-- ZRS izvoz -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-file-earmark-excel me-2"></i>Izvoz za ZRS (Zveza radioamaterjev)
+      </div>
+      <div class="card-body">
+        {% if zrs_shranjeno %}
+        <div class="alert alert-success alert-sm py-2 px-3 small mb-3">
+          <i class="bi bi-check-circle me-1"></i>Nastavitve ZRS izvoza so shranjene.
+        </div>
+        {% endif %}
+
+        <p class="text-muted small">
+          Generira Excel datoteko v formatu <code>prijava_clanov_YYYY.xlsx</code>
+          z listo članov ki so plačali članarino za izbrano leto.
+          Kateri tipi so vključeni je nastavljivo spodaj.
+        </p>
+
+        <!-- Gumb za prenos -->
+        <form method="get" action="/izvoz/zrs" class="mb-3">
+          <div class="mb-3">
+            <label class="form-label">Leto</label>
+            <input type="number" name="leto" class="form-control" value="{{ leto }}" min="2015" max="2035">
+          </div>
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-download me-1"></i>Prenesi ZRS Excel
+          </button>
+        </form>
+
+        {% if is_admin %}
+        <!-- Nastavitve ZRS izvoza (collapsible) -->
+        <div class="border-top pt-3">
+          <a class="text-decoration-none small text-secondary" data-bs-toggle="collapse"
+             href="#zrs-config-panel" role="button" aria-expanded="{{ 'true' if zrs_shranjeno else 'false' }}">
+            <i class="bi bi-gear me-1"></i>Nastavitve izvoza
+            <i class="bi bi-chevron-down ms-1" style="font-size:.75rem"></i>
+          </a>
+          <div class="collapse {% if zrs_shranjeno %}show{% endif %} mt-3" id="zrs-config-panel">
+            <form method="post" action="/izvoz/zrs-nastavitve">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+              <!-- Uppercase -->
+              <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" name="zrs_uppercase"
+                       value="1" id="zrs_uc" {% if zrs_config.uppercase %}checked{% endif %}>
+                <label class="form-check-label" for="zrs_uc">
+                  Pretvori besedilna polja v <strong>VELIKE ČRKE</strong>
+                </label>
+              </div>
+
+              <!-- Mapiranje tipov članstva -->
+              <p class="small fw-semibold mb-1">Mapiranje tipov članstva</p>
+              <p class="text-muted small mb-2">
+                Interni naziv → naziv v ZRS datoteki. <strong>Prazno = izključi iz izvoza.</strong>
+              </p>
+              <div class="table-responsive mb-3">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                  <thead class="table-light">
+                    <tr><th class="small">Interni tip</th><th class="small">ZRS naziv</th></tr>
+                  </thead>
+                  <tbody>
+                    {% for kljuc, zrs_vrednost in zrs_config.tipi.items() %}
+                    {% set i = loop.index0 %}
+                    <tr>
+                      <td class="small text-nowrap">
+                        <input type="hidden" name="tip_kljuc_{{ i }}" value="{{ kljuc }}">
+                        {{ kljuc }}
+                      </td>
+                      <td>
+                        <input type="text" name="tip_vrednost_{{ i }}"
+                               class="form-control form-control-sm"
+                               value="{{ zrs_vrednost }}"
+                               placeholder="(izključen)">
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Mapiranje operaterskih razredov -->
+              <p class="small fw-semibold mb-1">Mapiranje operaterskih razredov</p>
+              <p class="text-muted small mb-2">Interni razred → naziv v ZRS datoteki.</p>
+              <div class="table-responsive mb-3">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                  <thead class="table-light">
+                    <tr><th class="small">Interni razred</th><th class="small">ZRS naziv</th></tr>
+                  </thead>
+                  <tbody>
+                    {% for kljuc, zrs_vrednost in zrs_config.razredi.items() %}
+                    {% set i = loop.index0 %}
+                    <tr>
+                      <td class="small">
+                        <input type="hidden" name="razred_kljuc_{{ i }}" value="{{ kljuc }}">
+                        {{ kljuc }}
+                      </td>
+                      <td>
+                        <input type="text" name="razred_vrednost_{{ i }}"
+                               class="form-control form-control-sm"
+                               value="{{ zrs_vrednost }}">
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <!-- Stolpci -->
+              <p class="small fw-semibold mb-1">Stolpci Excel datoteke</p>
+              <p class="text-muted small mb-2">
+                Nastavite naziv, vrstni red in ali se stolpec vključi v izvoz.
+              </p>
+              <div class="table-responsive mb-3">
+                <table class="table table-sm table-bordered align-middle mb-0">
+                  <thead class="table-light">
+                    <tr>
+                      <th class="small">Polje</th>
+                      <th class="small">Naziv v Excel</th>
+                      <th class="small text-center" style="width:70px">Vrstni red</th>
+                      <th class="small text-center" style="width:70px">Vključi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for s in zrs_config.stolpci | sort(attribute='vrstni_red') %}
+                    {% set i = loop.index0 %}
+                    <tr>
+                      <td class="small text-muted text-nowrap">
+                        <input type="hidden" name="stolpec_kljuc_{{ i }}" value="{{ s.kljuc }}">
+                        {{ s.kljuc }}
+                      </td>
+                      <td>
+                        <input type="text" name="stolpec_naziv_{{ i }}"
+                               class="form-control form-control-sm"
+                               value="{{ s.naziv }}">
+                      </td>
+                      <td class="text-center">
+                        <input type="number" name="stolpec_red_{{ i }}"
+                               class="form-control form-control-sm text-center"
+                               value="{{ s.vrstni_red }}" min="1" max="99">
+                      </td>
+                      <td class="text-center">
+                        <input type="checkbox" name="stolpec_vkljuci_{{ i }}"
+                               class="form-check-input" value="1"
+                               {% if s.vkljuci %}checked{% endif %}>
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <button type="submit" class="btn btn-secondary btn-sm">
+                <i class="bi bi-save me-1"></i>Shrani nastavitve ZRS izvoza
+              </button>
+            </form>
+          </div>
+        </div>
+        {% endif %}
+
+      </div>
+    </div>
+  </div>
+
+  <!-- Backup Excel -->
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-success text-white">
+        <i class="bi bi-cloud-download me-2"></i>Backup podatkov
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">
+          Prenos celotne baze podatkov za varnostno kopiranje.
+          Izvoz vsebuje vse člane in zgodovino plačil.
+        </p>
+
+        <div class="d-flex flex-column gap-3">
+          <div>
+            <h6 class="small fw-semibold">Excel backup (vsi podatki)</h6>
+            <p class="small text-muted mb-2">Excel datoteka z vsemi člani in plačili.</p>
+            <a href="/izvoz/backup-excel" class="btn btn-success btn-sm">
+              <i class="bi bi-file-earmark-excel me-1"></i>Prenesi Excel backup
+            </a>
+          </div>
+
+          {% if is_admin %}
+          <hr class="my-1">
+          <div>
+            <h6 class="small fw-semibold">SQLite backup (celotna baza)</h6>
+            <p class="small text-muted mb-2">Surova SQLite datoteka – idealno za popolno obnovo.</p>
+            <a href="/izvoz/backup-db" class="btn btn-outline-secondary btn-sm">
+              <i class="bi bi-database-down me-1"></i>Prenesi SQLite backup
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Uvoz iz Excel -->
+  {% if is_admin %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header bg-warning text-dark">
+        <i class="bi bi-upload me-2"></i>Uvoz iz Excel
+      </div>
+      <div class="card-body">
+        <p class="text-muted small">
+          Uvozite obstoječe člane iz Excel datoteke (.xlsx).
+          Duplikati (enako ime in priimek) bodo preskočeni.
+        </p>
+        <a href="/izvoz/uvozi" class="btn btn-warning">
+          <i class="bi bi-upload me-1"></i>Uvozi iz Excel
+        </a>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+</div>
+{% endblock %}

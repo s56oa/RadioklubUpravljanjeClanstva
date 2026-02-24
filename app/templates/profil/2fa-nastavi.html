@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% block title %}Aktivacija 2FA – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-3">
+  <ol class="breadcrumb">
+    <li class="breadcrumb-item"><a href="/profil">Moj profil</a></li>
+    <li class="breadcrumb-item active">Aktivacija 2FA</li>
+  </ol>
+</nav>
+
+<h4 class="mb-4"><i class="bi bi-shield-check me-2 text-success"></i>Aktivacija dvostopenjske avtentikacije</h4>
+
+{% if napaka %}
+<div class="alert alert-danger">
+  <i class="bi bi-exclamation-triangle me-2"></i>{{ napaka }}
+</div>
+{% endif %}
+
+<div style="max-width:480px">
+  <div class="alert alert-info">
+    <i class="bi bi-info-circle me-2"></i>
+    Odprite aplikacijo za avtentikacijo (Google Authenticator, Aegis, …) in skenirajte spodnjo QR kodo.
+    Nato vnesite prikazano 6-mestno kodo za potrditev.
+  </div>
+
+  <!-- QR koda -->
+  <div class="text-center my-4">
+    <div style="max-width:220px; margin:0 auto; background:#fff; padding:8px; border-radius:8px; border:1px solid #dee2e6;">
+      {{ qr_svg|safe }}
+    </div>
+  </div>
+
+  <!-- Ročni vnos -->
+  <div class="mb-4">
+    <button class="btn btn-link btn-sm p-0 text-decoration-none" type="button"
+            data-bs-toggle="collapse" data-bs-target="#rocniVnos">
+      <i class="bi bi-chevron-down me-1"></i>Ročni vnos skrivnosti
+    </button>
+    <div class="collapse mt-2" id="rocniVnos">
+      <div class="p-2 bg-light rounded border font-monospace small" style="word-break:break-all; user-select:all;">
+        {{ skrivnost }}
+      </div>
+      <div class="form-text">Kopirajte to vrednost v polje "Skrivnost" / "Secret key" vaše aplikacije.</div>
+    </div>
+  </div>
+
+  <!-- Forma za potrditev -->
+  <form method="post" action="/profil/2fa-potrdi">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <div class="mb-3">
+      <label class="form-label fw-semibold">Potrditvena koda <span class="text-danger">*</span></label>
+      <input type="text" name="koda" class="form-control form-control-lg text-center font-monospace"
+             required autofocus inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7"
+             placeholder="000000" autocomplete="one-time-code" style="letter-spacing:.2em; max-width:200px;">
+      <div class="form-text">Vnesite 6-mestno kodo iz vaše aplikacije.</div>
+    </div>
+    <div class="d-flex gap-2">
+      <button type="submit" class="btn btn-success">
+        <i class="bi bi-shield-check me-1"></i>Potrdi in aktiviraj
+      </button>
+      <a href="/profil" class="btn btn-outline-secondary">Prekliči</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

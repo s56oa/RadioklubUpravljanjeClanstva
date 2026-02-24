@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}{{ skupina.ime }} – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/skupine">Skupine</a></li>
+      <li class="breadcrumb-item active">{{ skupina.ime }}</li>
+    </ol>
+  </nav>
+  {% if is_editor %}
+  <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIzbrisi">
+    <i class="bi bi-trash me-1"></i>Izbriši skupino
+  </button>
+  {% endif %}
+</div>
+
+<div class="row g-4">
+
+  <!-- Podatki o skupini -->
+  <div class="col-lg-4">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-pencil-square me-2"></i>Podatki skupine
+      </div>
+      <div class="card-body">
+        {% if is_editor %}
+        <form method="post" action="/skupine/{{ skupina.id }}/uredi">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <div class="mb-3">
+            <label class="form-label">Ime <span class="text-danger">*</span></label>
+            <input type="text" name="ime" class="form-control" required
+                   value="{{ skupina.ime }}">
+          </div>
+          <div class="mb-3">
+            <label class="form-label">Opis</label>
+            <textarea name="opis" class="form-control" rows="3"
+                      placeholder="Kratek opis...">{{ skupina.opis or '' }}</textarea>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-save me-1"></i>Shrani
+          </button>
+        </form>
+        {% else %}
+        <dl class="row mb-0">
+          <dt class="col-sm-4">Ime</dt>
+          <dd class="col-sm-8">{{ skupina.ime }}</dd>
+          {% if skupina.opis %}
+          <dt class="col-sm-4">Opis</dt>
+          <dd class="col-sm-8">{{ skupina.opis }}</dd>
+          {% endif %}
+        </dl>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Člani -->
+  <div class="col-lg-8">
+    <div class="card">
+      <div class="card-header bg-secondary text-white d-flex justify-content-between align-items-center">
+        <span>
+          <i class="bi bi-person-lines-fill me-2"></i>Člani
+          <span class="badge bg-light text-dark ms-1">{{ clani_v_skupini|length }}</span>
+        </span>
+        {% if is_editor and prosti_clani %}
+        <button class="btn btn-light btn-sm" data-bs-toggle="collapse" data-bs-target="#formDodajClana">
+          <i class="bi bi-person-plus me-1"></i>Dodaj člana
+        </button>
+        {% endif %}
+      </div>
+
+      {% if is_editor and prosti_clani %}
+      <div class="collapse" id="formDodajClana">
+        <div class="card-body border-bottom bg-light">
+          <form method="post" action="/skupine/{{ skupina.id }}/dodaj-clana" class="row g-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <div class="col-md-9">
+              <label class="form-label small mb-1">Izberi člana</label>
+              <select name="clan_id" class="form-select form-select-sm" required>
+                <option value="">– izberite člana –</option>
+                {% for c in prosti_clani %}
+                <option value="{{ c.id }}">{{ c.priimek }} {{ c.ime }}{% if c.klicni_znak %} ({{ c.klicni_znak }}){% endif %}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-3">
+              <button type="submit" class="btn btn-secondary btn-sm w-100">
+                <i class="bi bi-person-plus me-1"></i>Dodaj
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card-body p-0">
+        {% if clani_v_skupini %}
+        <table class="table table-sm table-hover mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Priimek in ime</th>
+              <th>Klicni znak</th>
+              <th>Tip članstva</th>
+              {% if is_editor %}<th class="text-center" style="width:60px">Odstrani</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for c in clani_v_skupini %}
+            <tr>
+              <td>
+                <a href="/clani/{{ c.id }}" class="text-decoration-none fw-semibold">
+                  {{ c.priimek }} {{ c.ime }}
+                </a>
+                {% if not c.aktiven %}
+                <span class="badge bg-secondary ms-1 small">neaktiven</span>
+                {% endif %}
+              </td>
+              <td>
+                {% if c.klicni_znak %}<code>{{ c.klicni_znak }}</code>
+                {% else %}<span class="text-muted">–</span>{% endif %}
+              </td>
+              <td><span class="text-muted small">{{ c.tip_clanstva }}</span></td>
+              {% if is_editor %}
+              <td class="text-center">
+                <form method="post" action="/skupine/{{ skupina.id }}/odstrani-clana/{{ c.id }}"
+                      class="d-inline"
+                      onsubmit="return confirm('Odstrani {{ c.priimek }} {{ c.ime }} iz skupiny {{ skupina.ime }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0">
+                    <i class="bi bi-person-dash"></i>
+                  </button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center text-muted py-4 small">
+          <i class="bi bi-person-x me-1"></i>V tej skupini ni še nobenega člana.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Modal brisanja skupine -->
+{% if is_editor %}
+<div class="modal fade" id="modalIzbrisi" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Izbriši skupino</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Ste prepričani, da želite <strong>trajno izbrisati</strong> skupino
+        <strong>{{ skupina.ime }}</strong>?
+        <div class="text-muted small mt-2">Člani skupiny ne bodo izbrisani – le njihova členitev v to skupino.</div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Prekliči</button>
+        <form method="post" action="/skupine/{{ skupina.id }}/izbrisi">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button type="submit" class="btn btn-danger">Izbriši skupino</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

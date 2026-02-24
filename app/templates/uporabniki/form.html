@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}{% if u %}Uredi uporabnika{% else %}Nov uporabnik{% endif %} – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/uporabniki">Uporabniki</a></li>
+      <li class="breadcrumb-item active">{% if u %}Uredi{% else %}Nov{% endif %}</li>
+    </ol>
+  </nav>
+</div>
+
+<div class="card" style="max-width:500px">
+  <div class="card-header bg-primary text-white">
+    <i class="bi bi-person-gear me-2"></i>
+    {% if u %}Uredi uporabnika: {{ u.uporabnisko_ime }}{% else %}Nov uporabnik{% endif %}
+  </div>
+  <div class="card-body">
+    {% if napaka %}
+    <div class="alert alert-danger py-2">{{ napaka }}</div>
+    {% endif %}
+
+    {% if zacasno_geslo %}
+    <div class="alert alert-warning border-warning">
+      <div class="fw-semibold mb-1"><i class="bi bi-key-fill me-2"></i>Začasno geslo je generirano</div>
+      <p class="mb-2 small">Sporočite geslo uporabniku. Prikazano bo samo enkrat.</p>
+      <div class="input-group">
+        <code class="form-control bg-light fs-5 fw-bold" id="zacasnoGeslo">{{ zacasno_geslo }}</code>
+        <button type="button" class="btn btn-outline-secondary"
+                onclick="navigator.clipboard.writeText('{{ zacasno_geslo }}'); this.innerHTML='<i class=\'bi bi-check\'></i> Kopirano'">
+          <i class="bi bi-clipboard"></i> Kopiraj
+        </button>
+      </div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{% if u %}/uporabniki/{{ u.id }}/uredi{% else %}/uporabniki/nov{% endif %}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+      <div class="mb-3">
+        <label class="form-label">Ime in priimek</label>
+        <input type="text" name="ime_priimek" class="form-control" value="{{ u.ime_priimek if u and u.ime_priimek else '' }}">
+      </div>
+
+      {% if not u %}
+      <div class="mb-3">
+        <label class="form-label">Uporabniško ime <span class="text-danger">*</span></label>
+        <input type="text" name="uporabnisko_ime" class="form-control" required>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Geslo <span class="text-danger">*</span></label>
+        <input type="password" name="geslo" class="form-control" required>
+        <div class="form-text text-muted">
+          Zahteve: vsaj 14 znakov, mali in veliki znaki, številka in posebni znak (npr. !@#$%&*).
+        </div>
+      </div>
+      {% else %}
+      <div class="mb-3">
+        <label class="form-label">Novo geslo <span class="text-muted small">(pustite prazno za nespremenjeno)</span></label>
+        <input type="password" name="novo_geslo" class="form-control">
+        <div class="form-text text-muted">
+          Zahteve: vsaj 14 znakov, mali in veliki znaki, številka in posebni znak (npr. !@#$%&*).
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="mb-3">
+        <label class="form-label">Vloga <span class="text-danger">*</span></label>
+        <select name="vloga" class="form-select">
+          {% for v in vloge %}
+          <option value="{{ v }}" {% if u and u.vloga == v %}selected{% endif %}>
+            {{ v | capitalize }}
+          </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      {% if u %}
+      <div class="mb-3">
+        <label class="form-label">Status</label>
+        <select name="aktiven" class="form-select">
+          <option value="da" {% if u.aktiven %}selected{% endif %}>Aktiven</option>
+          <option value="ne" {% if not u.aktiven %}selected{% endif %}>Neaktiven</option>
+        </select>
+      </div>
+      {% endif %}
+
+      <div class="d-flex gap-2 flex-wrap">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-save me-1"></i>Shrani
+        </button>
+        <a href="/uporabniki" class="btn btn-outline-secondary">Prekliči</a>
+        {% if u %}
+        <form method="post" action="/uporabniki/{{ u.id }}/reset-geslo" class="ms-auto"
+              onsubmit="return confirm('Generirajte novo začasno geslo za {{ u.uporabnisko_ime }}?\nObstoječe geslo bo takoj razveljavljeno.')">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button type="submit" class="btn btn-outline-warning">
+            <i class="bi bi-arrow-repeat me-1"></i>Generiraj začasno geslo
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,115 @@
+{% extends "base.html" %}
+{% block title %}Predogled uvoza plačil – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/izvoz">Izvoz / Uvoz</a></li>
+      <li class="breadcrumb-item"><a href="/izvoz/uvozi">Uvoz iz Excel</a></li>
+      <li class="breadcrumb-item active">Predogled plačil</li>
+    </ol>
+  </nav>
+</div>
+
+<div class="alert {% if za_uvoz %}alert-info{% else %}alert-warning{% endif %} d-flex align-items-center gap-2">
+  <i class="bi bi-eye fs-5"></i>
+  <div>
+    <strong>Predogled uvoza plačil:</strong>
+    <strong>{{ za_uvoz|length }}</strong> plačil za uvoz,
+    <strong>{{ preskoceni|length }}</strong> vnosov bo preskočenih.
+  </div>
+</div>
+
+{% if za_uvoz %}
+<div class="card mb-3">
+  <div class="card-header bg-info text-dark">
+    <i class="bi bi-currency-euro me-2"></i>Plačila za uvoz ({{ za_uvoz|length }})
+  </div>
+  <div class="table-responsive card-body p-0">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Priimek</th>
+          <th>Ime</th>
+          <th>Leto</th>
+          <th>Datum plačila</th>
+          <th>Znesek</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for p in za_uvoz %}
+        <tr>
+          <td>{{ p.priimek }}</td>
+          <td>{{ p.ime }}</td>
+          <td>{{ p.leto }}</td>
+          <td>{{ p.datum_placila.strftime('%d. %m. %Y') }}</td>
+          <td>{% if p.znesek %}{{ p.znesek }} €{% else %}<span class="text-muted">–</span>{% endif %}</td>
+          <td>
+            {% if p.posodobi %}
+            <span class="badge bg-warning text-dark">Posodobi</span>
+            {% else %}
+            <span class="badge bg-success">Nov</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% else %}
+<div class="alert alert-warning">
+  <i class="bi bi-info-circle me-2"></i>Ni plačil za uvoz. Preverite vsebino datoteke in nastavitve stolpcev.
+</div>
+{% endif %}
+
+{% if preskoceni %}
+<div class="card mb-3">
+  <div class="card-header bg-light">
+    <button class="btn btn-link text-decoration-none p-0 text-secondary fw-semibold"
+            type="button" data-bs-toggle="collapse" data-bs-target="#preskoceniSection">
+      <i class="bi bi-skip-forward me-2"></i>Preskočeni vnosi ({{ preskoceni|length }})
+      <i class="bi bi-chevron-down ms-1 small"></i>
+    </button>
+  </div>
+  <div class="collapse" id="preskoceniSection">
+    <div class="table-responsive card-body p-0">
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Priimek</th>
+            <th>Ime</th>
+            <th>Razlog preskoka</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in preskoceni %}
+          <tr class="text-muted">
+            <td>{{ p.priimek }}</td>
+            <td>{{ p.ime }}</td>
+            <td><span class="text-danger small">{{ p.razlog }}</span></td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="d-flex gap-2 mt-3">
+  {% if za_uvoz %}
+  <form method="post" action="/izvoz/uvozi-placila-potrdi">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <button type="submit" class="btn btn-info text-dark">
+      <i class="bi bi-upload me-1"></i>Potrdi uvoz ({{ za_uvoz|length }} plačil)
+    </button>
+  </form>
+  {% endif %}
+  <a href="/izvoz/uvozi" class="btn btn-outline-secondary">
+    <i class="bi bi-x-circle me-1"></i>Prekliči
+  </a>
+</div>
+{% endblock %}

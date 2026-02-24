@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block title %}Nastavitve – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-gear-fill me-2 text-primary"></i>Nastavitve kluba</h4>
+
+{% if shranjen %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-check-circle me-2"></i>Nastavitve so shranjene.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<form method="post" action="/nastavitve">
+<input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+<div class="row g-3">
+
+  <!-- Podatki kluba -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-building me-2"></i>Podatki kluba (za ZRS izvoz)
+      </div>
+      <div class="card-body">
+        {% for kljuc, opis in kljuci_klub %}
+        <div class="mb-3">
+          <label class="form-label">{{ opis }}</label>
+          <input type="text" name="{{ kljuc }}" class="form-control"
+            value="{{ nas.get(kljuc, '') }}">
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <!-- Nastavljivi seznami -->
+  <div class="col-lg-6">
+    <div class="card">
+      <div class="card-header bg-secondary text-white">
+        <i class="bi bi-list-ul me-2"></i>Tipi članstva in operaterski razredi
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Vnesite <strong>eno vrednost na vrstico</strong>. Vrstni red se upošteva v obrazcih in izvozih.
+        </p>
+        {% for kljuc, opis, _ in kljuci_seznam %}
+        <div class="mb-4">
+          <label class="form-label fw-semibold">{{ opis }}</label>
+          <textarea name="{{ kljuc }}" class="form-control font-monospace"
+            rows="{{ nas.get(kljuc, '')|string|list|length + 2 }}"
+            style="min-height: 100px"
+            placeholder="Ena vrednost na vrstico...">{{ nas.get(kljuc, '') }}</textarea>
+          <div class="form-text">
+            Trenutno: {{ nas.get(kljuc, '')|string|replace('\n', ', ') }}
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <div class="col-12">
+    <button type="submit" class="btn btn-primary">
+      <i class="bi bi-save me-1"></i>Shrani nastavitve
+    </button>
+  </div>
+
+</div>
+</form>
+{% endblock %}

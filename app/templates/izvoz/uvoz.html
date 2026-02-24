@@ -1,0 +1,181 @@
+{% extends "base.html" %}
+{% block title %}Uvoz iz Excel – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/izvoz">Izvoz / Uvoz</a></li>
+      <li class="breadcrumb-item active">Uvoz iz Excel</li>
+    </ol>
+  </nav>
+</div>
+
+<div class="row g-3">
+
+{# === Uvoz članov === #}
+<div class="col-lg-6">
+  <div class="card">
+    <div class="card-header bg-warning text-dark">
+      <i class="bi bi-people me-2"></i>Uvoz članov iz Excel datoteke
+    </div>
+    <div class="card-body">
+      {% if sporocilo %}
+      <div class="alert alert-success">
+        <i class="bi bi-check-circle me-2"></i>{{ sporocilo }}
+      </div>
+      {% endif %}
+      {% if napaka %}
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>{{ napaka }}
+      </div>
+      {% endif %}
+
+      <div class="alert alert-info small">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Navodila:</strong> Izberite Excel datoteko (.xlsx) s podatki članov.
+        Sistem bo poiskal list z imenom <code>ListaVsi</code> (ali prvi list).
+        Stolpci bodo prepoznani po imenih v glavi (1. vrstica).
+        Duplikati (isto ime + priimek) bodo preskočeni.
+      </div>
+
+      <form method="post" action="/izvoz/uvozi" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="mb-3">
+          <label class="form-label">Excel datoteka (.xlsx)</label>
+          <input type="file" name="datoteka" class="form-control" accept=".xlsx" required>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-warning">
+            <i class="bi bi-upload me-1"></i>Uvozi člane
+          </button>
+          <a href="/izvoz" class="btn btn-outline-secondary">Prekliči</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if is_admin and kljuci_uvoz %}
+<div class="col-lg-6">
+  <div class="card">
+    <div class="card-header bg-secondary text-white">
+      <i class="bi bi-table me-2"></i>Nastavitve uvoza članov
+    </div>
+    <div class="card-body">
+      {% if uvoz_shranjeno %}
+      <div class="alert alert-success alert-sm py-2 px-3 small mb-3">
+        <i class="bi bi-check-circle me-1"></i>Nastavitve uvoza so shranjene.
+      </div>
+      {% endif %}
+
+      <p class="text-muted small mb-3">
+        Vnesite ime stolpca iz Excel datoteke. Za <strong>več možnih imen</strong> jih ločite z vejico
+        (npr. <code>priimek, last name</code>). Iskanje je brez upoštevanja velikosti črk.
+      </p>
+
+      <form method="post" action="/izvoz/uvozi-nastavitve">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="row g-2 mb-3">
+          {% for kljuc, opis in kljuci_uvoz %}
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-1">{{ opis }}</label>
+            <input type="text" name="{{ kljuc }}" class="form-control form-control-sm font-monospace"
+              value="{{ uvoz_nas.get(kljuc, '') }}"
+              placeholder="ime stolpca v Excel...">
+          </div>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">
+          <i class="bi bi-save me-1"></i>Shrani nastavitve
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{# === Uvoz plačil === #}
+<div class="col-lg-6">
+  <div class="card">
+    <div class="card-header bg-info text-dark">
+      <i class="bi bi-currency-euro me-2"></i>Uvoz plačil članarine iz Excel datoteke
+    </div>
+    <div class="card-body">
+      {% if sporocilo_placila %}
+      <div class="alert alert-success">
+        <i class="bi bi-check-circle me-2"></i>{{ sporocilo_placila }}
+      </div>
+      {% endif %}
+      {% if napaka_placila %}
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>{{ napaka_placila }}
+      </div>
+      {% endif %}
+
+      <div class="alert alert-info small">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Navodila:</strong> Izberite Excel datoteko (.xlsx) s plačili členarine.
+        Stolpci bodo prepoznani po imenih v glavi (1. vrstica).
+        Leto plačila se določi iz datuma v stolpcu.
+        Člani se poiščejo po priimku in imenu.
+        Obstoječe plačilo za isto leto bo posodobljeno.
+      </div>
+
+      <form method="post" action="/izvoz/uvozi-placila" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="mb-3">
+          <label class="form-label">Excel datoteka (.xlsx)</label>
+          <input type="file" name="datoteka" class="form-control" accept=".xlsx" required>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-info text-dark">
+            <i class="bi bi-upload me-1"></i>Uvozi plačila
+          </button>
+          <a href="/izvoz" class="btn btn-outline-secondary">Prekliči</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% if is_admin and kljuci_uvoz_placila %}
+<div class="col-lg-6">
+  <div class="card">
+    <div class="card-header bg-secondary text-white">
+      <i class="bi bi-table me-2"></i>Nastavitve uvoza plačil
+    </div>
+    <div class="card-body">
+      {% if placila_shranjeno %}
+      <div class="alert alert-success alert-sm py-2 px-3 small mb-3">
+        <i class="bi bi-check-circle me-1"></i>Nastavitve uvoza plačil so shranjene.
+      </div>
+      {% endif %}
+
+      <p class="text-muted small mb-3">
+        Vnesite ime stolpca iz Excel datoteke. Za <strong>več možnih imen</strong> jih ločite z vejico.
+      </p>
+
+      <form method="post" action="/izvoz/uvozi-placila-nastavitve">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="row g-2 mb-3">
+          {% for kljuc, opis in kljuci_uvoz_placila %}
+          <div class="col-12">
+            <label class="form-label small fw-semibold mb-1">{{ opis }}</label>
+            <input type="text" name="{{ kljuc }}" class="form-control form-control-sm font-monospace"
+              value="{{ placila_nas.get(kljuc, '') }}"
+              placeholder="ime stolpca v Excel...">
+          </div>
+          {% endfor %}
+        </div>
+        <button type="submit" class="btn btn-secondary btn-sm">
+          <i class="bi bi-save me-1"></i>Shrani nastavitve
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}

@@ -1,0 +1,430 @@
+{% extends "base.html" %}
+{% block title %}{{ clan.priimek }} {{ clan.ime }} – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/clani">Člani</a></li>
+      <li class="breadcrumb-item active">{{ clan.priimek }} {{ clan.ime }}</li>
+    </ol>
+  </nav>
+  <div>
+    {% if is_editor %}
+    <a href="/clani/{{ clan.id }}/uredi" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-pencil me-1"></i>Uredi
+    </a>
+    {% endif %}
+    {% if is_admin %}
+    <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIzbrisi">
+      <i class="bi bi-trash me-1"></i>Izbriši
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <!-- Osebni podatki -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-person-fill me-2"></i>Osebni podatki
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Priimek in ime</dt>
+          <dd class="col-sm-7 fw-semibold">{{ clan.priimek }} {{ clan.ime }}</dd>
+
+          <dt class="col-sm-5">Klicni znak</dt>
+          <dd class="col-sm-7">
+            {% if clan.klicni_znak %}<code class="fs-6">{{ clan.klicni_znak }}</code>
+            {% else %}<span class="text-muted">–</span>{% endif %}
+          </dd>
+
+          <dt class="col-sm-5">Tip članstva</dt>
+          <dd class="col-sm-7">
+            <span class="badge
+              {% if clan.tip_clanstva == 'Osebni' %}bg-primary
+              {% elif clan.tip_clanstva == 'Družinski' %}bg-info text-dark
+              {% elif clan.tip_clanstva == 'Simpatizerji' %}bg-secondary
+              {% elif clan.tip_clanstva == 'Mladi' %}bg-success
+              {% elif clan.tip_clanstva == 'Invalid' %}bg-warning text-dark
+              {% else %}bg-light text-dark{% endif %}">
+              {{ clan.tip_clanstva }}
+            </span>
+          </dd>
+
+          {% if clan.klicni_znak_nosilci %}
+          <dt class="col-sm-5">Nosilci (druž. čl.)</dt>
+          <dd class="col-sm-7"><code>{{ clan.klicni_znak_nosilci }}</code></dd>
+          {% endif %}
+
+          <dt class="col-sm-5">Operaterski razred</dt>
+          <dd class="col-sm-7">{{ clan.operaterski_razred or '–' }}</dd>
+
+          <dt class="col-sm-5">Veljavnost RD</dt>
+          <dd class="col-sm-7">
+            {% if clan.veljavnost_rd %}
+              {% if clan.veljavnost_rd < today %}
+              <span class="text-danger fw-semibold"><i class="bi bi-exclamation-triangle me-1"></i>{{ clan.veljavnost_rd.strftime('%d. %m. %Y') }}</span>
+              {% else %}
+              {{ clan.veljavnost_rd.strftime('%d. %m. %Y') }}
+              {% endif %}
+            {% else %}–{% endif %}
+          </dd>
+
+          <dt class="col-sm-5">ES številka (ZRS)</dt>
+          <dd class="col-sm-7">{{ clan.es_stevilka or '–' }}</dd>
+
+          <dt class="col-sm-5">Status</dt>
+          <dd class="col-sm-7">
+            {% if clan.aktiven %}
+            <span class="badge bg-success">Aktiven</span>
+            {% else %}
+            <span class="badge bg-secondary">Neaktiven</span>
+            {% endif %}
+          </dd>
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- Kontaktni podatki -->
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header bg-secondary text-white">
+        <i class="bi bi-envelope-fill me-2"></i>Kontakt in naslov
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5">Naslov</dt>
+          <dd class="col-sm-7">{{ clan.naslov_ulica or '–' }}</dd>
+
+          <dt class="col-sm-5">Pošta</dt>
+          <dd class="col-sm-7">{{ clan.naslov_posta or '–' }}</dd>
+
+          <dt class="col-sm-5">Mobilni telefon</dt>
+          <dd class="col-sm-7">
+            {% if clan.mobilni_telefon %}
+            <a href="tel:{{ clan.mobilni_telefon }}">{{ clan.mobilni_telefon }}</a>
+            {% else %}–{% endif %}
+          </dd>
+
+          <dt class="col-sm-5">Telefon doma</dt>
+          <dd class="col-sm-7">{{ clan.telefon_doma or '–' }}</dd>
+
+          <dt class="col-sm-5">E-pošta</dt>
+          <dd class="col-sm-7">
+            {% if clan.elektronska_posta %}
+            <a href="mailto:{{ clan.elektronska_posta }}">{{ clan.elektronska_posta }}</a>
+            {% else %}–{% endif %}
+          </dd>
+
+          <dt class="col-sm-5">Soglasje OP</dt>
+          <dd class="col-sm-7">{{ clan.soglasje_op or '–' }}</dd>
+
+          <dt class="col-sm-5">Izjava</dt>
+          <dd class="col-sm-7">{{ clan.izjava or '–' }}</dd>
+
+          {% if clan.opombe %}
+          <dt class="col-sm-5">Opombe</dt>
+          <dd class="col-sm-7">{{ clan.opombe }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- Skupine -->
+  {% if clan.skupine %}
+  <div class="col-12">
+    <div class="card">
+      <div class="card-body py-2 d-flex align-items-center flex-wrap gap-2">
+        <span class="text-muted small me-1"><i class="bi bi-people me-1"></i>Skupine:</span>
+        {% for s in clan.skupine|sort(attribute='ime') %}
+        <a href="/skupine/{{ s.id }}" class="badge bg-primary text-decoration-none">{{ s.ime }}</a>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Evidenca plačil -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-cash-coin me-2"></i>Evidenca plačil članarine</span>
+        {% if is_editor %}
+        <button class="btn btn-light btn-sm" data-bs-toggle="collapse" data-bs-target="#formDodajPlacilo">
+          <i class="bi bi-plus-circle me-1"></i>Dodaj plačilo
+        </button>
+        {% endif %}
+      </div>
+
+      {% if is_editor %}
+      <div class="collapse" id="formDodajPlacilo">
+        <div class="card-body border-bottom bg-light">
+          <form method="post" action="/clanarine/dodaj" class="row g-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <input type="hidden" name="clan_id" value="{{ clan.id }}">
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Leto</label>
+              <input type="number" name="leto" class="form-control form-control-sm" value="{{ leto_zdaj }}" min="2010" max="2035" required>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Datum plačila</label>
+              <input type="date" name="datum_placila" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Znesek (€)</label>
+              <input type="text" name="znesek" class="form-control form-control-sm" placeholder="npr. 25">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Opomba</label>
+              <input type="text" name="opombe" class="form-control form-control-sm" placeholder="Neobvezno...">
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-success btn-sm w-100">
+                <i class="bi bi-save me-1"></i>Shrani
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="d-flex align-items-center gap-2 px-3 py-2 bg-light border-bottom">
+        <small class="text-muted me-1">Prikaži:</small>
+        <div class="btn-group btn-group-sm" role="group">
+          <input type="radio" class="btn-check" name="filterPlacila" id="fp-vsi" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="fp-vsi">Vse</label>
+          <input type="radio" class="btn-check" name="filterPlacila" id="fp-2" autocomplete="off" checked>
+          <label class="btn btn-outline-secondary" for="fp-2">Zadnji 2 leti</label>
+          <input type="radio" class="btn-check" name="filterPlacila" id="fp-10" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="fp-10">Zadnjih 10 let</label>
+        </div>
+      </div>
+
+      <div class="card-body p-0">
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle" id="tabelaPlacil">
+          <thead class="table-light">
+            <tr>
+              <th>Leto</th>
+              <th>Datum plačila</th>
+              <th>Znesek (€)</th>
+              <th>Opomba</th>
+              {% if is_editor %}<th class="text-center">Akcija</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for leto in vsa_leta %}
+            {% set c = clanarine_dict.get(leto) %}
+            <tr data-leto="{{ leto }}" {% if leto == leto_zdaj %}class="table-info"{% endif %}>
+              <td><strong>{{ leto }}</strong></td>
+              <td>
+                {% if c and c.datum_placila %}
+                <span class="text-success"><i class="bi bi-check-circle-fill me-1"></i>{{ c.datum_placila.strftime('%d. %m. %Y') }}</span>
+                {% elif c %}
+                <span class="text-warning"><i class="bi bi-dash-circle me-1"></i>Brez datuma</span>
+                {% else %}
+                <span class="text-danger"><i class="bi bi-x-circle me-1"></i>Neplačano</span>
+                {% endif %}
+              </td>
+              <td>{{ c.znesek if c and c.znesek else '' }}</td>
+              <td>{{ c.opombe if c and c.opombe else '' }}</td>
+              {% if is_editor %}
+              <td class="text-center">
+                {% if c %}
+                <form method="post" action="/clanarine/izbrisi/{{ c.id }}" class="d-inline"
+                      onsubmit="return confirm('Izbriši vnos za {{ leto }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                  <input type="hidden" name="clan_id" value="{{ clan.id }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+                {% endif %}
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+  <!-- Evidenca aktivnosti -->
+  <div class="col-12" id="aktivnosti">
+    <div class="card">
+      <div class="card-header bg-info text-dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-calendar-check me-2"></i>Evidenca aktivnosti</span>
+        {% if is_editor %}
+        <button class="btn btn-light btn-sm" data-bs-toggle="collapse" data-bs-target="#formDodajAktivnost">
+          <i class="bi bi-plus-circle me-1"></i>Dodaj aktivnost
+        </button>
+        {% endif %}
+      </div>
+
+      {% if is_editor %}
+      <div class="collapse" id="formDodajAktivnost">
+        <div class="card-body border-bottom bg-light">
+          <form method="post" action="/aktivnosti/dodaj" class="row g-2 align-items-start">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <input type="hidden" name="clan_id" value="{{ clan.id }}">
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Leto</label>
+              <input type="number" name="leto" class="form-control form-control-sm"
+                     value="{{ leto_zdaj }}" min="2000" max="2099" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Datum aktivnosti</label>
+              <input type="date" name="datum" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Aktivnost <span class="text-danger">*</span></label>
+              <textarea name="opis" class="form-control form-control-sm" rows="2"
+                        maxlength="1000" placeholder="Opis aktivnosti..." required></textarea>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Del. ure</label>
+              <input type="number" name="delovne_ure" class="form-control form-control-sm"
+                     min="0" max="9999" step="0.5" placeholder="npr. 4">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
+              <button type="submit" class="btn btn-info btn-sm w-100">
+                <i class="bi bi-save me-1"></i>Shrani
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      {% if aktivnosti %}
+      <div class="d-flex align-items-center gap-2 px-3 py-2 bg-light border-bottom">
+        <small class="text-muted me-1">Prikaži:</small>
+        <div class="btn-group btn-group-sm" role="group">
+          <input type="radio" class="btn-check" name="filterAktivnosti" id="fa-vsi" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="fa-vsi">Vse</label>
+          <input type="radio" class="btn-check" name="filterAktivnosti" id="fa-2" autocomplete="off" checked>
+          <label class="btn btn-outline-secondary" for="fa-2">Zadnji 2 leti</label>
+          <input type="radio" class="btn-check" name="filterAktivnosti" id="fa-10" autocomplete="off">
+          <label class="btn btn-outline-secondary" for="fa-10">Zadnjih 10 let</label>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card-body p-0">
+        {% if aktivnosti %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle" id="tabelaAktivnosti">
+          <thead class="table-light">
+            <tr>
+              <th style="width:70px">Leto</th>
+              <th style="width:130px">Datum</th>
+              <th>Aktivnost</th>
+              <th style="width:100px">Del. ure</th>
+              {% if is_editor %}<th class="text-center" style="width:60px">Akcija</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in aktivnosti %}
+            <tr data-leto="{{ a.leto }}">
+              <td><strong>{{ a.leto }}</strong></td>
+              <td>
+                {% if a.datum %}
+                {{ a.datum.strftime('%d. %m. %Y') }}
+                {% else %}
+                <span class="text-muted">–</span>
+                {% endif %}
+              </td>
+              <td>{{ a.opis }}</td>
+              <td>{{ a.delovne_ure if a.delovne_ure is not none else '' }}</td>
+              {% if is_editor %}
+              <td class="text-center">
+                <form method="post" action="/aktivnosti/izbrisi/{{ a.id }}" class="d-inline"
+                      onsubmit="return confirm('Izbriši ta vnos aktivnosti?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                  <input type="hidden" name="clan_id" value="{{ clan.id }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="text-muted text-center py-3 small">
+          <i class="bi bi-calendar-x me-1"></i>Ni vpisanih aktivnosti.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+<!-- Modal brisanja -->
+{% if is_admin %}
+<div class="modal fade" id="modalIzbrisi" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title text-danger"><i class="bi bi-trash me-2"></i>Izbriši člana</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        Ste prepričani, da želite <strong>trajno izbrisati</strong> člana
+        <strong>{{ clan.priimek }} {{ clan.ime }}</strong> in vso njegovo zgodovino plačil?
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Prekliči</button>
+        <form method="post" action="/clani/{{ clan.id }}/izbrisi">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button type="submit" class="btn btn-danger">Izbriši</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+const letoZdaj = {{ leto_zdaj }};
+
+function filterTabela(tabelaId, n) {
+  document.querySelectorAll('#' + tabelaId + ' tr[data-leto]').forEach(function(tr) {
+    var leto = parseInt(tr.dataset.leto);
+    tr.style.display = (n === 0 || leto >= letoZdaj - n + 1) ? '' : 'none';
+  });
+}
+
+// Inicializacija filtrov plačil
+filterTabela('tabelaPlacil', 2);
+document.querySelectorAll('input[name="filterPlacila"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    if (this.id === 'fp-vsi') filterTabela('tabelaPlacil', 0);
+    else if (this.id === 'fp-2')  filterTabela('tabelaPlacil', 2);
+    else if (this.id === 'fp-10') filterTabela('tabelaPlacil', 10);
+  });
+});
+
+// Inicializacija filtrov aktivnosti
+filterTabela('tabelaAktivnosti', 2);
+document.querySelectorAll('input[name="filterAktivnosti"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    if (this.id === 'fa-vsi') filterTabela('tabelaAktivnosti', 0);
+    else if (this.id === 'fa-2')  filterTabela('tabelaAktivnosti', 2);
+    else if (this.id === 'fa-10') filterTabela('tabelaAktivnosti', 10);
+  });
+});
+</script>
+{% endblock %}

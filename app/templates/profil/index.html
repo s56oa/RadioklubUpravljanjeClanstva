@@ -1,0 +1,194 @@
+{% extends "base.html" %}
+{% block title %}Moj profil – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<h4 class="mb-4"><i class="bi bi-person-circle me-2 text-primary"></i>Moj profil</h4>
+
+{% if ime_shranjeno %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-check-circle me-2"></i>Prikazno ime je shranjeno.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if geslo_spremenjeno %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-check-circle me-2"></i>Geslo je uspešno spremenjeno.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if tfa_aktivirana %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-shield-check me-2"></i>Dvostopenjska avtentikacija je bila uspešno aktivirana.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+{% if tfa_onemogocena %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-shield-x me-2"></i>Dvostopenjska avtentikacija je bila onemogočena.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="row g-4" style="max-width:900px">
+
+  <!-- Informacije o računu -->
+  <div class="col-md-5">
+    <div class="card h-100">
+      <div class="card-header bg-primary text-white">
+        <i class="bi bi-info-circle me-2"></i>Podatki računa
+      </div>
+      <div class="card-body">
+        <dl class="row mb-3">
+          <dt class="col-sm-5">Uporabniško ime</dt>
+          <dd class="col-sm-7"><code>{{ u.uporabnisko_ime }}</code></dd>
+
+          <dt class="col-sm-5">Vloga</dt>
+          <dd class="col-sm-7">
+            <span class="badge
+              {% if u.vloga == 'admin' %}bg-danger
+              {% elif u.vloga == 'urednik' %}bg-warning text-dark
+              {% else %}bg-secondary{% endif %}">
+              {{ u.vloga | capitalize }}
+            </span>
+          </dd>
+        </dl>
+
+        <form method="post" action="/profil/ime">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <div class="mb-3">
+            <label class="form-label">Prikazno ime</label>
+            <input type="text" name="ime_priimek" class="form-control"
+                   value="{{ u.ime_priimek or '' }}"
+                   placeholder="Ime Priimek">
+            <div class="form-text">Prikazano v meniju in poročilih.</div>
+          </div>
+          <button type="submit" class="btn btn-primary btn-sm">
+            <i class="bi bi-save me-1"></i>Shrani ime
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sprememba gesla -->
+  <div class="col-md-7">
+    <div class="card h-100">
+      <div class="card-header bg-secondary text-white">
+        <i class="bi bi-shield-lock me-2"></i>Sprememba gesla
+      </div>
+      <div class="card-body">
+        {% if napaka_geslo %}
+        <div class="alert alert-danger py-2">
+          <i class="bi bi-exclamation-triangle me-2"></i>{{ napaka_geslo }}
+        </div>
+        {% endif %}
+
+        <form method="post" action="/profil/geslo">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+          <div class="mb-3">
+            <label class="form-label">Trenutno geslo <span class="text-danger">*</span></label>
+            <input type="password" name="staro_geslo" class="form-control" required autocomplete="current-password">
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Novo geslo <span class="text-danger">*</span></label>
+            <input type="password" name="novo_geslo" class="form-control" required autocomplete="new-password"
+                   id="novoGeslo">
+            <div class="form-text text-muted">
+              Zahteve: vsaj 14 znakov, mali in veliki znaki, številka in posebni znak (npr. !@#$%&*).
+            </div>
+          </div>
+
+          <div class="mb-3">
+            <label class="form-label">Potrditev novega gesla <span class="text-danger">*</span></label>
+            <input type="password" name="novo_geslo2" class="form-control" required autocomplete="new-password"
+                   id="novoGeslo2">
+            <div id="ujemanjeFeedback" class="form-text"></div>
+          </div>
+
+          <button type="submit" class="btn btn-secondary">
+            <i class="bi bi-shield-check me-1"></i>Spremeni geslo
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dvostopenjska avtentikacija -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header {% if u.totp_aktiven %}bg-success{% else %}bg-light{% endif %} {% if u.totp_aktiven %}text-white{% endif %}">
+        <i class="bi bi-shield-lock me-2"></i>Dvostopenjska avtentikacija (2FA)
+        {% if u.totp_aktiven %}
+        <span class="badge bg-light text-success ms-2">Aktivna</span>
+        {% else %}
+        <span class="badge bg-secondary ms-2">Neaktivna</span>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if napaka_2fa %}
+        <div class="alert alert-danger py-2">
+          <i class="bi bi-exclamation-triangle me-2"></i>{{ napaka_2fa }}
+        </div>
+        {% endif %}
+
+        {% if not u.totp_aktiven %}
+        <p class="text-muted mb-3">
+          Zaščitite svoj račun z TOTP aplikacijo (Google Authenticator, Aegis, …).
+          Po aktivaciji boste ob vsaki prijavi vnesli tudi 6-mestno kodo.
+        </p>
+        <a href="/profil/2fa-nastavi" class="btn btn-success">
+          <i class="bi bi-shield-plus me-1"></i>Aktiviraj 2FA
+        </a>
+        {% else %}
+        <p class="text-muted mb-3">
+          2FA je aktivna. Za onemogočanje vnesite kodo iz vaše aplikacije.
+        </p>
+        <form method="post" action="/profil/2fa-onemogoči" class="d-flex gap-2 align-items-end flex-wrap">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <div>
+            <label class="form-label mb-1 small">Koda za potrditev</label>
+            <input type="text" name="koda" class="form-control form-control-sm font-monospace"
+                   required inputmode="numeric" pattern="[0-9 ]{6,7}" maxlength="7"
+                   placeholder="000000" autocomplete="one-time-code" style="width:120px;">
+          </div>
+          <button type="submit" class="btn btn-outline-danger btn-sm">
+            <i class="bi bi-shield-x me-1"></i>Onemogoči 2FA
+          </button>
+        </form>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sproti preveri ali se gesli ujemata
+const g1 = document.getElementById('novoGeslo');
+const g2 = document.getElementById('novoGeslo2');
+const fb = document.getElementById('ujemanjeFeedback');
+
+function preveriUjemanje() {
+  if (!g2.value) { fb.textContent = ''; g2.classList.remove('is-valid','is-invalid'); return; }
+  if (g1.value === g2.value) {
+    fb.textContent = 'Gesli se ujemata.';
+    fb.className = 'form-text text-success';
+    g2.classList.replace('is-invalid','is-valid') || g2.classList.add('is-valid');
+  } else {
+    fb.textContent = 'Gesli se ne ujemata.';
+    fb.className = 'form-text text-danger';
+    g2.classList.replace('is-valid','is-invalid') || g2.classList.add('is-invalid');
+  }
+}
+
+g1.addEventListener('input', preveriUjemanje);
+g2.addEventListener('input', preveriUjemanje);
+</script>
+{% endblock %}
