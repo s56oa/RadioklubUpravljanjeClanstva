@@ -17,10 +17,11 @@
 5. [HTTPS z Nginx reverse proxy](#5-https-z-nginx-reverse-proxy)
 6. [Vzdrževanje](#6-vzdrževanje)
 7. [Posodobitev aplikacije](#7-posodobitev-aplikacije)
-8. [Lokalni razvoj brez Dockerja](#8-lokalni-razvoj-brez-dockerja)
-9. [Arhitektura podatkovnega modela](#9-arhitektura-podatkovnega-modela)
-10. [Varnostne opombe](#10-varnostne-opombe)
-11. [Testi](#11-testi)
+8. [CI/CD – GitHub Actions in Container Registry](#8-cicd--github-actions-in-container-registry)
+9. [Lokalni razvoj brez Dockerja](#9-lokalni-razvoj-brez-dockerja)
+10. [Arhitektura podatkovnega modela](#10-arhitektura-podatkovnega-modela)
+11. [Varnostne opombe](#11-varnostne-opombe)
+12. [Testi](#12-testi)
 
 ---
 
@@ -528,22 +529,92 @@ cd /opt/radioklub-clanstvo
 # 1. Naredite backup baze pred posodobitvijo
 cp data/clanstvo.db backups/clanstvo_pred_posod_$(date +%Y%m%d).db
 
-# 2. Prenesite novo kodo (git pull ali zamenjajte datoteke)
-git pull   # ali ročno kopirajte nove datoteke
+# 2. Prenesite nov image in zaženite
+docker compose pull
+docker compose up -d
 
-# 3. Zgradite in zaženite
-docker compose up -d --build
-
-# 4. Preverite
+# 3. Preverite
 docker compose ps
 docker compose logs --tail=20
 ```
+
+> Nov Docker image je samodejno zgrajen in objavljen ob vsaki posodobitvi kode. Lokalni build ni potreben.
 
 Migracije baze se izvedejo samodejno ob zagonu (funkcija `_migriraj_bazo()` v `main.py`). **Podatki v `./data/` se ob posodobitvi ne izbrišejo.**
 
 ---
 
-## 8. Lokalni razvoj brez Dockerja
+## 8. CI/CD – GitHub Actions in Container Registry
+
+### Pregled
+
+Vsak push na vejo `main` samodejno sproži GitHub Actions workflow (`.github/workflows/docker-publish.yml`), ki:
+
+1. Zgradi Docker image za **linux/amd64** in **linux/arm64** (Raspberry Pi)
+2. Potisne image v **GitHub Container Registry (GHCR)**: `ghcr.io/s56oa/radioklubupravljanjeclanstva`
+3. Označi image z `latest` (za `main` vejo) in verzijsko oznako (za git tage `v*`)
+
+Workflow za avtentikacijo v GHCR uporablja samodejni `secrets.GITHUB_TOKEN` – **ni potrebnih dodatnih skrivnosti ali konfiguracije**.
+
+### Verzioniranje
+
+| Trigger | Docker tag |
+|---------|-----------|
+| Push na `main` | `latest`, `main` |
+| Git tag `v1.12` | `1.12`, `1`, `latest` |
+
+Za izdajo nove verzije zadostuje:
+```bash
+git tag v1.13
+git push origin v1.13
+```
+
+### Prednosti za končne uporabnike
+
+Ker je image vnaprej zgrajen, **kloniranje repozitorija in lokalni build nista potrebna**. Uporabnik potrebuje samo:
+
+```bash
+# 1. Prenesite docker-compose.yml in .env.example
+curl -fsSL https://raw.githubusercontent.com/s56oa/RadioklubUpravljanjeClanstva/main/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/s56oa/RadioklubUpravljanjeClanstva/main/.env.example -o .env
+
+# 2. Uredite .env (SECRET_KEY in ADMIN_GESLO)
+
+# 3. Zaženite – Docker image se samodejno prenese
+docker compose up -d
+```
+
+### Posodobitev na novo verzijo
+
+```bash
+docker compose pull   # prenese novo verzijo image-a
+docker compose up -d  # zažene nov vsebnik
+```
+
+### Pregled zgrajenih image-ov
+
+Dostopno na: `https://github.com/s56oa/RadioklubUpravljanjeClanstva/pkgs/container/radioklubupravljanjeclanstva`
+
+### Workflow datoteka
+
+```
+.github/
+└── workflows/
+    └── docker-publish.yml    ← CI/CD definicija
+```
+
+Ključne nastavitve workflowa:
+
+| Nastavitev | Vrednost |
+|-----------|---------|
+| Platforme | `linux/amd64`, `linux/arm64` |
+| Registry | `ghcr.io` |
+| Cache | GitHub Actions cache (`type=gha`) |
+| Avtentikacija | `secrets.GITHUB_TOKEN` (samodejno) |
+
+---
+
+## 9. Lokalni razvoj brez Dockerja (za razvijalce)
 
 Za razvoj in testiranje:
 
@@ -577,7 +648,7 @@ Vsi testi (34) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.d
 
 ---
 
-## 9. Arhitektura podatkovnega modela
+## 10. Arhitektura podatkovnega modela
 
 ### Tabele
 
@@ -682,7 +753,7 @@ Audit log akcije v zvezi z 2FA:
 
 ---
 
-## 10. Varnostne opombe
+## 11. Varnostne opombe
 
 Podroben varnostni pregled je v datoteki `Varnost.md`.
 
@@ -723,7 +794,7 @@ pip-audit -r requirements.txt
 
 ---
 
-## 11. Testi
+## 12. Testi
 
 Testi se nahajajo v mapi `tests/` in za zagon zahtevajo `requirements-dev.txt`.
 
@@ -755,4 +826,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.12*
+*Radio klub Člani – tehnična dokumentacija, različica 1.12 + CI/CD*
