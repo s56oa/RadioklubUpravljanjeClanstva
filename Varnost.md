@@ -61,19 +61,12 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 
 ### VISOKO
 
-#### V1. Brez HTTPS
-- **Tveganje:** Session cookie in gesla se prenašajo v čistem tekstu (pasivno prisluškovanje).
-- **Ukrep:** Nginx reverse proxy z Let's Encrypt certifikatom. Po namestitvi v `main.py` nastavi
-  `https_only=True` (vrstica 145) in dodaj `Strict-Transport-Security` header v `SecurityHeadersMiddleware`.
-  ```nginx
-  server {
-      listen 443 ssl;
-      server_name clanstvo.vasadomena.si;
-      ssl_certificate /etc/letsencrypt/live/.../fullchain.pem;
-      ssl_certificate_key /etc/letsencrypt/live/.../privkey.pem;
-      location / { proxy_pass http://127.0.0.1:8000; }
-  }
-  ```
+#### V1. Brez HTTPS (samo pri javnem dostopu)
+- **Velja za:** Aplikacije dostopne iz javnega interneta. Za lokalno omrežje ali VPN dostop to tveganje ni relevantno.
+- **Tveganje:** Session cookie in gesla se prenašajo v čistem tekstu (pasivno prisluškovanje na javnem omrežju).
+- **Ukrep:** HTTPS in HSTS uredite na reverse proxy-u – kode aplikacije ni treba spreminjati.
+  - **Synology:** Control Panel → Login Portal → Reverse Proxy → Custom Header → `Strict-Transport-Security: max-age=31536000; includeSubDomains`
+  - **Nginx:** `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;` v server bloku za port 443
 
 #### V2. ~~Šibka politika gesel~~ ✅ IMPLEMENTIRANO (v1.3)
 - `preveri_zahteve_gesla()` v `app/auth.py`: min. 14 znakov, mali/veliki znaki, številka, posebni znak.
@@ -145,12 +138,10 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
   vpisov preden nastane problem.
 - **Ukrep:** Periodično čiščenje starejših vpisov (npr. starejših od 1 leta) prek cron/Docker timer.
 
-#### N3. HSTS header manjka (ko bo HTTPS aktiviran)
-- **Datoteka:** `app/main.py` – `SecurityHeadersMiddleware` (vrstice 47–55)
-- **Ukrep:** Po aktivaciji HTTPS dodaj:
-  ```python
-  response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
-  ```
+#### N3. HSTS header (ko je HTTPS aktiviran)
+- **Ukrep:** Nastavi na reverse proxy-u – kode aplikacije ni treba spreminjati.
+  - Synology: Custom Header v Reverse Proxy nastavitvah
+  - Nginx: `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`
 
 #### N4. Začasno geslo ne ustreza politiki
 - **Datoteka:** `app/routers/uporabniki.py` – `_generiraj_geslo(12)` (vrstice 15–20)
@@ -186,7 +177,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | Pravica do pozabe | ⚠️ Delno | Brisanje je trajno (cascade delete), brez mehkega brisanja ali izvajalnih jamstev |
 | Izvoz podatkov (GDPR čl. 20) | ✅ | Excel backup vsebuje vse podatke za posameznega člana |
 | Omejitev dostopa | ✅ | Vloge admin/urednik/bralec; bralec ne more pisati |
-| Šifriranje v prenosu | ❌ | Brez HTTPS (glej V1) |
+| Šifriranje v prenosu | ⚠️ Pogojno | Lokalno/VPN: ni potrebno. Javni dostop: HTTPS + HSTS na reverse proxy-u (glej V1) |
 | Beleženje dostopa | ✅ v1.7 | Audit log beleži vsak ogled in spremembo podatkov |
 | Minimizacija podatkov | ✅ | Zbira samo polja, ki jih ZRS zahteva |
 
@@ -207,11 +198,12 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 ## Priporočen vrstni red odprave
 
 1. **Pred vsakim zagonom:** Nastaviti `SECRET_KEY` in `ADMIN_GESLO` v `.env` (K1, K2)
-2. **Pred javnim dostopom:** Dodati HTTPS z Nginx + Let's Encrypt (V1)
-3. **Priporočeno za vse uporabniške račune:** Aktivirati 2FA prek Moj profil → Aktiviraj 2FA (posebej za admin)
-4. **V kratkem:** Validacija `vloga` polja pri urejanju uporabnikov (S5)
-5. **Priporočeno:** Trajen rate limiting v SQLite (V3); inaktivni session timeout (S4)
-6. **Operativno:** Redni `pip-audit`; periodično čiščenje audit loga (N2, N5)
+2. **Lokalna ali VPN uporaba:** Ni potrebnih dodatnih ukrepov – promet ne zapusti zaupljivega omrežja
+3. **Pred javnim dostopom:** HTTPS + HSTS na reverse proxy-u (Synology ali Nginx) – brez sprememb kode (V1)
+4. **Priporočeno za vse uporabniške račune:** Aktivirati 2FA prek Moj profil → Aktiviraj 2FA (posebej za admin)
+5. **V kratkem:** Validacija `vloga` polja pri urejanju uporabnikov (S5)
+6. **Priporočeno:** Trajen rate limiting v SQLite (V3); inaktivni session timeout (S4)
+7. **Operativno:** Redni `pip-audit`; periodično čiščenje audit loga (N2, N5)
 
 ---
 

@@ -394,17 +394,51 @@ KLUB_OZNAKA=S5XYZ
 
 ---
 
-## 5. HTTPS z Nginx reverse proxy
+## 5. HTTPS in javni dostop
 
-Za dostop zunaj domačega omrežja je HTTPS obvezen.
+### Tipična uporaba – lokalno omrežje ali VPN
 
-### Namestitev Nginx (Linux)
+Za večino radioklubov je aplikacija dostopna samo znotraj lokalnega omrežja ali prek VPN. V tem primeru **HTTPS ni potreben** – promet ne zapusti zaupljivega omrežja in aplikacija deluje varno brez sprememb.
+
+### Javni dostop prek interneta
+
+Kadar je aplikacija dostopna iz javnega interneta, je HTTPS obvezen. Vso varnostno konfiguracijo (SSL, HSTS) uredite na **reverse proxy-u** – kode aplikacije ni treba spreminjati.
+
+#### HSTS (Strict-Transport-Security)
+
+HSTS header pove brskalniku, naj za to domeno vedno uporablja HTTPS in nikoli ne pošlje piškotkov po HTTP. To zadostuje za popolno zaščito session cookijev – ni treba posegati v kodo aplikacije.
+
+---
+
+### 5A. Synology NAS – vgrajen reverse proxy
+
+**Control Panel → Login Portal → Advanced → Reverse Proxy → Edit → Custom Header → Create → Custom**
+
+| Header Name | Header Value |
+|-------------|-------------|
+| `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
+
+Let's Encrypt certifikat: **Control Panel → Security → Certificate → Add → Get a certificate from Let's Encrypt**
+
+Preverite, da HSTS deluje:
+
+```bash
+curl -I https://clanstvo.vasadomena.si | grep -i strict
+```
+
+> **Opomba glede `includeSubDomains`:** Če imate na isti domeni druge subdomene brez HTTPS, uporabite samo `max-age=31536000`.
+
+---
+
+### 5B. Linux strežnik – Nginx reverse proxy
+
+#### Namestitev
 
 ```bash
 sudo apt install -y nginx certbot python3-certbot-nginx
 ```
 
-### Nginx konfiguracija
+#### Nginx konfiguracija
 
 Ustvarite `/etc/nginx/sites-available/clanstvo`:
 
@@ -424,6 +458,9 @@ server {
     ssl_protocols       TLSv1.2 TLSv1.3;
     ssl_ciphers         HIGH:!aNULL:!MD5;
 
+    # HSTS – brskalnik vedno uporablja HTTPS za to domeno
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+
     # Omejitev velikosti uploadov (skladno z MAX_UPLOAD_BYTES v aplikaciji)
     client_max_body_size 12M;
 
@@ -440,38 +477,19 @@ server {
 
 ```bash
 sudo ln -s /etc/nginx/sites-available/clanstvo /etc/nginx/sites-enabled/
-sudo nginx -t
-sudo systemctl reload nginx
+sudo nginx -t && sudo systemctl reload nginx
 ```
 
-### Let's Encrypt certifikat
+#### Let's Encrypt certifikat
 
 ```bash
 sudo certbot --nginx -d clanstvo.vasadomena.si
 ```
 
-Certbot samodejno nastavi certifikat in obnovo. Preverite, da je cron / systemd timer za obnovo aktiven:
+Certbot samodejno nastavi certifikat in obnovo. Preverite timer:
 
 ```bash
 sudo systemctl status certbot.timer
-```
-
-### Po namestitvi HTTPS
-
-V `app/main.py` nastavite `https_only=True` v `SessionMiddleware` (vrstica ~162):
-
-```python
-app.add_middleware(
-    SessionMiddleware,
-    ...
-    https_only=True,   # ← spremenite na True
-)
-```
-
-Ter dodajte HSTS header v `SecurityHeadersMiddleware`:
-
-```python
-response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
 ```
 
 ---
