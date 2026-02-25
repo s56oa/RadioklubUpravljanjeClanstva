@@ -18,7 +18,7 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | bcrypt hashiranje gesel | ✅ | v1.0 |
 | Vloge in avtorizacija (admin/urednik/bralec) | ✅ | v1.0 |
 | Varnostni HTTP headers | ✅ | v1.2 |
-| Session SameSite=Strict, timeout 1h | ✅ | v1.2 |
+| Session SameSite=Strict, timeout 1h, `https_only=False` (namerno) | ✅ | v1.2 |
 | Session fixation preprečevanje | ✅ | v1.2 |
 | Rate limiting prijave (10 / 15 min per IP) | ✅ | v1.2 |
 | Timing attack mitigacija pri prijavi | ✅ | v1.2 |
@@ -67,6 +67,7 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 - **Ukrep:** HTTPS in HSTS uredite na reverse proxy-u – kode aplikacije ni treba spreminjati.
   - **Synology:** Control Panel → Login Portal → Reverse Proxy → Custom Header → `Strict-Transport-Security: max-age=31536000; includeSubDomains`
   - **Nginx:** `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;` v server bloku za port 443
+- **Opomba glede `https_only`:** `https_only=False` v `SessionMiddleware` (`app/main.py`) ostane **tudi pri javnem HTTPS dostopu**. Nastavitev `https_only=True` bi zlomila dostop za lokalne in VPN uporabnike, ki dostopajo po HTTP. HSTS na reverse proxy-u zagotavlja enako raven zaščite: brskalnik za to domeno nikoli ne pošlje piškotka po HTTP.
 
 #### V2. ~~Šibka politika gesel~~ ✅ IMPLEMENTIRANO (v1.3)
 - `preveri_zahteve_gesla()` v `app/auth.py`: min. 14 znakov, mali/veliki znaki, številka, posebni znak.
