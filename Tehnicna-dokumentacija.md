@@ -410,23 +410,145 @@ HSTS header pove brskalniku, naj za to domeno vedno uporablja HTTPS in nikoli ne
 
 ---
 
-### 5A. Synology NAS – vgrajen reverse proxy
+### 5A. Synology NAS – Let's Encrypt in vgrajen reverse proxy
 
-**Control Panel → Login Portal → Advanced → Reverse Proxy → Edit → Custom Header → Create → Custom**
+Ta postopek velja za Synology NAS z DSM 7.2+ na katerem že tečejo druge storitve. Vsaka domena ima lasten certifikat in lastno reverse proxy pravilo – obstoječe storitve se ne spremenijo.
+
+Primer spodaj uporablja domeno `clani.s59dgo.org` – zamenjajte z dejansko domeno vašega kluba.
+
+#### Predpogoj: Port forwarding na usmerjevalniku
+
+Let's Encrypt za pridobitev certifikata potrebuje **port 80** (HTTP-01 challenge). Poleg 443, ki je verjetno že preusmerjen, dodajte še port 80:
+
+| Ime | Zunanji port | Protokol | Destinacija (IP NAS-a) | Interni port |
+|-----|-------------|----------|------------------------|-------------|
+| NAS-HTTPS | 443 | TCP | 192.168.x.x | 443 |
+| NAS-HTTP | 80 | TCP | 192.168.x.x | 80 |
+
+> Port 80 mora ostati odprt – Synology DSM ga potrebuje za samodejno obnovo certifikata (vsake 90 dni).
+
+#### Korak 1: Pridobi Let's Encrypt certifikat
+
+**DSM → Control Panel → Security → Certificate → Add**
+
+1. Kliknite **Add** → **Add a new certificate** → **Next**
+2. Izberite: **Get a certificate from Let's Encrypt**
+3. Vnesite:
+   - **Domain name:** `clani.s59dgo.org`
+   - **Email:** vaš e-naslov (za obvestila o obnovi)
+   - **Subject Alternative Name:** pustite prazno
+4. Kliknite **Apply**
+
+DSM bo kontaktiral Let's Encrypt, opravil HTTP challenge in shranil certifikat. Postopek traja ~30 sekund.
+
+> Če imate wildcard certifikat (`*.s59dgo.org`), ki že pokriva `clani.s59dgo.org`, ta korak preskočite.
+
+#### Korak 2: Nastavi Reverse Proxy
+
+**DSM → Control Panel → Login Portal → Advanced → Reverse Proxy → Create**
+
+Izpolnite polja:
+
+| Polje | Vrednost |
+|-------|----------|
+| Reverse Proxy Name | `clani-s59dgo` |
+| Protocol (Source) | `HTTPS` |
+| Hostname | `clani.s59dgo.org` |
+| Port | `443` |
+| Protocol (Destination) | `HTTP` |
+| Hostname | `localhost` |
+| Port | `8000` |
+
+> Preverite kateri port ima vaš Docker container. V `docker-compose.yml` poiščite vrstico `ports`. Če imate `- "8080:8000"`, je destinacijski port `8080`.
+
+Po ustvaritvi pravila kliknite **Edit** → zavihek **Custom Header** → **Create** → **Header**:
 
 | Header Name | Header Value |
 |-------------|-------------|
 | `Strict-Transport-Security` | `max-age=31536000; includeSubDomains` |
 
-Let's Encrypt certifikat: **Control Panel → Security → Certificate → Add → Get a certificate from Let's Encrypt**
-
-Preverite, da HSTS deluje:
-
-```bash
-curl -I https://clanstvo.vasadomena.si | grep -i strict
-```
+Kliknite **Save**.
 
 > **Opomba glede `includeSubDomains`:** Če imate na isti domeni druge subdomene brez HTTPS, uporabite samo `max-age=31536000`.
+
+#### Korak 3: Dodeli certifikat domeni
+
+**DSM → Control Panel → Security → Certificate → Configure**
+
+V seznamu poiščite vrstico `clani.s59dgo.org` (reverse proxy service) in ji dodelite certifikat `clani.s59dgo.org` (Let's Encrypt, pridobljen v koraku 1).
+
+Obstoječe storitve na NAS-u ohranijo svoje certifikate – vsaka domena je neodvisna.
+
+#### Korak 4: Preveri Docker port binding
+
+Synology reverse proxy komunicira z Dockerjem interno, zato mora biti port dostopen na `localhost`. Preverite `docker-compose.yml`:
+
+```yaml
+# Pravilno – dostopno lokalno na NAS-u (priporočeno):
+ports:
+  - "127.0.0.1:8000:8000"
+
+# Ali brez IP omejitve (bolj ohlapno, a deluje):
+ports:
+  - "8000:8000"
+```
+
+Če ste med namestitvijo nastavili specifičen IP NAS-a (npr. `192.168.3.6:8080:8000`), ga zamenjajte nazaj na `127.0.0.1:8000:8000`, saj bo do aplikacije dostopala samo Synology (ne neposredno iz omrežja):
+
+```bash
+# Na NAS-u v mapi z docker-compose.yml:
+docker compose down && docker compose up -d
+```
+
+#### Korak 5: Omogoči HTTPS session cookie v aplikaciji
+
+Ko je HTTPS aktiven, odprite `app/main.py` in nastavite `https_only=True` v SessionMiddleware:
+
+```python
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=SECRET_KEY,
+    same_site="strict",
+    max_age=3600,
+    https_only=True,   # ← spremenite False v True
+)
+```
+
+Pošljite spremembo na GitHub (iz razvojnega računalnika):
+
+```bash
+git add app/main.py
+git commit -m "Enable https_only for production HTTPS deployment"
+git push
+```
+
+GitHub Actions bo zgradil nov image. Na NAS-u posodobite:
+
+```bash
+docker compose pull && docker compose up -d
+```
+
+#### Korak 6: Preizkus
+
+```bash
+# HTTP → HTTPS redirect (Synology to naredi samodejno)
+curl -I http://clani.s59dgo.org
+# Pričakovano: 301 Moved Permanently → https://clani.s59dgo.org
+
+# HTTPS z veljavnim certifikatom
+curl -I https://clani.s59dgo.org
+# Pričakovano: 200 OK
+
+# Preveri HSTS header
+curl -I https://clani.s59dgo.org | grep -i strict
+# Pričakovano: strict-transport-security: max-age=31536000; includeSubDomains
+```
+
+Ali v brskalniku: `https://clani.s59dgo.org` → zelena ključavnica.
+
+#### Obnova certifikata
+
+Synology DSM certifikat samodejno obnovi 30 dni pred iztekom. Port 80 mora ostati odprt (HTTP challenge). Ni potrebnih ročnih posegov.
 
 ---
 
