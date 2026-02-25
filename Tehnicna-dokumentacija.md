@@ -500,35 +500,7 @@ ports:
 docker compose down && docker compose up -d
 ```
 
-#### Korak 5: Omogoči HTTPS session cookie v aplikaciji
-
-Ko je HTTPS aktiven, odprite `app/main.py` in nastavite `https_only=True` v SessionMiddleware:
-
-```python
-app.add_middleware(
-    SessionMiddleware,
-    secret_key=SECRET_KEY,
-    same_site="strict",
-    max_age=3600,
-    https_only=True,   # ← spremenite False v True
-)
-```
-
-Pošljite spremembo na GitHub (iz razvojnega računalnika):
-
-```bash
-git add app/main.py
-git commit -m "Enable https_only for production HTTPS deployment"
-git push
-```
-
-GitHub Actions bo zgradil nov image. Na NAS-u posodobite:
-
-```bash
-docker compose pull && docker compose up -d
-```
-
-#### Korak 6: Preizkus
+#### Korak 5: Preizkus
 
 ```bash
 # HTTP → HTTPS redirect (Synology to naredi samodejno)
