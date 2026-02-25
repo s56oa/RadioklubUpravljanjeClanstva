@@ -154,8 +154,11 @@ cd /opt/radioklub-clanstvo   # ali katerakoli lokacija
 cp .env.example .env
 nano .env
 
-# Zgradite image in zaženite
-docker compose up -d --build
+# Ustvarite mapo za bazo podatkov
+mkdir -p data && chmod 777 data
+
+# Zaženite (image se samodejno prenese iz GHCR)
+docker compose up -d
 
 # Preverite status
 docker compose ps
@@ -200,8 +203,11 @@ cd ~/radioklub-clanstvo
 cp .env.example .env
 nano .env
 
-# Gradnja je na Pi 4 približno 3-5 min (prvič)
-docker compose up -d --build
+# Ustvarite mapo za bazo podatkov
+mkdir -p data && chmod 777 data
+
+# Zaženite (image se samodejno prenese iz GHCR)
+docker compose up -d
 
 # Preverite
 docker compose ps
@@ -235,7 +241,8 @@ cd ~/Projekti/radioklub-clanstvo   # ali kjer je aplikacija
 cp .env.example .env
 open -e .env   # uredi v TextEditu, ali uporabite nano/vim
 
-docker compose up -d --build
+mkdir -p data && chmod 777 data
+docker compose up -d
 
 # Preverite
 docker compose ps
@@ -310,13 +317,19 @@ cd /volume1/docker/radioklub-clanstvo
 cp .env.example .env
 vi .env   # uredite vrednosti
 
-# Zaženite (Docker Compose je na DSM 7 del Container Manager)
-docker compose up -d --build
+# OBVEZNO: ustvarite mapo za bazo podatkov pred prvim zagonom
+# (Docker je ne ustvari samodejno, vsebnik pa teče kot neprivilegirani uporabnik)
+mkdir -p data && chmod 777 data
 
-# Preverite
+# Zaženite (Docker Compose je na DSM 7 del Container Manager)
+docker compose up -d
+
+# Preverite – aplikacija je dostopna na http://<IP-NAS>:8080
 docker compose ps
-docker compose logs --tail=50
+docker compose logs --tail=20
 ```
+
+> **Opomba za port:** V `docker-compose.yml` nastavite port na `<IP-NAS>:8080:8000` ali samo `8080:8000` (ne `127.0.0.1:8080:8000`, ker s tem port ostane dostopen samo lokalno na NAS-u in ne iz omrežja). Aplikacijo dosežete na `http://<IP-NAS>:8080`, ne `http://localhost:8080`.
 
 ---
 

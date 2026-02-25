@@ -34,6 +34,7 @@ OKOLJE=produkcija
 ```
 
 ```bash
+mkdir -p data && chmod 777 data
 docker compose up -d
 ```
 
