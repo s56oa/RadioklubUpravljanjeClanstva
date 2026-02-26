@@ -815,15 +815,20 @@ Workflow za avtentikacijo v GHCR uporablja samodejni `secrets.GITHUB_TOKEN` – 
 
 ### Verzioniranje
 
-| Trigger | Docker tag |
-|---------|-----------|
-| Push na `main` | `latest`, `main` |
-| Git tag `v1.12` | `1.12`, `1`, `latest` |
+Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`.
 
-Za izdajo nove verzije zadostuje:
+| Trigger | Docker tagi |
+|---------|------------|
+| Push na `main` | `latest`, `main` |
+| Git tag `v1.12.0` | `1.12.0`, `1.12`, `1`, `latest` |
+
+> **Opomba:** `v1.12` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.12.0`.
+
+Za izdajo nove verzije:
 ```bash
-git tag v1.12
-git push origin v1.12
+git tag v1.12.0
+git push origin v1.12.0
 ```
 
 ### Prednosti za končne uporabnike
