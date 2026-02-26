@@ -25,6 +25,13 @@
 </div>
 {% endif %}
 
+{% if naprave_odjavil %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-check-circle me-2"></i>Vse zaupljive naprave so bile odjavljene.
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
 {% if tfa_onemogocena %}
 <div class="alert alert-success alert-dismissible fade show">
   <i class="bi bi-shield-x me-2"></i>Dvostopenjska avtentikacija je bila onemogočena.
@@ -160,6 +167,28 @@
             <i class="bi bi-shield-x me-1"></i>Onemogoči 2FA
           </button>
         </form>
+
+        {% if zaupljive_naprave %}
+        <hr class="mt-4">
+        <h6 class="text-muted mb-2 small"><i class="bi bi-laptop me-1"></i>Zaupljive naprave</h6>
+        <ul class="list-group list-group-flush mb-3">
+          {% for n in zaupljive_naprave %}
+          <li class="list-group-item px-0 py-1 small text-muted">
+            <i class="bi bi-check-circle-fill text-success me-2"></i>
+            {{ n.created_at.strftime('%d. %m. %Y') if n.created_at else '–' }}
+            &nbsp;·&nbsp;
+            {{ (n.user_agent or 'Neznana naprava') | truncate(60, True, '…') }}
+          </li>
+          {% endfor %}
+        </ul>
+        <form method="post" action="/profil/odjavi-naprave">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <button type="submit" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-x-circle me-1"></i>Odjavi vse naprave
+          </button>
+        </form>
+        {% endif %}
+
         {% endif %}
       </div>
     </div>

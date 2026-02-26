@@ -124,3 +124,14 @@ class AuditLog(Base):
     ip = Column(String, nullable=True)
     akcija = Column(String, nullable=False, index=True)
     opis = Column(String, nullable=True)
+
+
+class ZaupljivaNaprava(Base):
+    __tablename__ = "zaupljive_naprave"
+
+    id = Column(Integer, primary_key=True, index=True)
+    uporabnik_id = Column(Integer, ForeignKey("uporabniki.id"), nullable=False, index=True)
+    token_hash = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    user_agent = Column(String, nullable=True)

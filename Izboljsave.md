@@ -43,6 +43,10 @@
 | Generičen klub – brez trdih referenc | ✅ | v1.10 | KlubContextMiddleware; dinamičen navbar/title prek request.state; nastavitve uvoza premaknjene na /uvozi; docker-compose generičen |
 | Ločen uvoz plačil | ✅ | v1.11 | Uvoz članov ne uvozi več plačil; ločen obrazec za uvoz plačil s stolpci Priimek, Ime, Datum plačila, Znesek; leto se določi iz datuma; identifikacija po priimku+imenu; upsert obstoječih; 2-koračni predogled; nastavljivi stolpci |
 | Opcijska 2FA avtentikacija (TOTP) | ✅ | v1.12 | pyotp + segno; Uporabnik.totp_skrivnost/totp_aktiven; /login/2fa za OTP korak; /profil/2fa-nastavi (QR SVG); /profil/2fa-potrdi; /profil/2fa-onemogoči; rate limiting reuse; audit log |
+| Zaupljiva naprava – 2FA "zapomni (30 dni)" | ✅ | v1.12 | Checkbox na 2FA strani; SHA-256 hashed token v zaupljive_naprave; 30-dnevni httponly cookie; pregled in odjava naprav na profilu; audit log login_2fa_zaupljiva |
+| Alembic migracije | ✅ | v1.12 | Zamenjava ročnih ALTER TABLE; alembic/versions/001 (vse tabele) + 002 (zaupljive_naprave); auto-stamp obstoječih baz kot 001 |
+| Logging v datoteko | ✅ | v1.12 | RotatingFileHandler → data/app.log; 5 MB × 5 datotek; konfiguriran v _nastavi_logging() ob zagonu |
+| ProxyHeadersMiddleware | ✅ | v1.12 | Uvicorn ProxyHeadersMiddleware (trusted_hosts="*"); bere X-Forwarded-For/X-Real-IP od reverse proxy-a; pravilni IP v audit logu |
 
 ---
 
@@ -109,9 +113,8 @@
 | Omejitev | Opis | Možna rešitev |
 |---|---|---|
 | SQLite | Ni primerno za 100+ sočasnih uporabnikov | Zamenjava z PostgreSQL |
-| Brez HTTPS | HTTP samo – za lokalno omrežje sprejemljivo | Nginx reverse proxy + Let's Encrypt |
+| Brez HTTPS | HTTP samo – za lokalno omrežje sprejemljivo | Nginx / Synology reverse proxy + Let's Encrypt |
 | Brez avtomatskega backupa | Backup je ročen | Cron job v Docker-ju |
-| Brez 2FA | Samo geslo | TOTP (Google Authenticator) |
 
 ---
 
@@ -120,9 +123,9 @@
 - [x] Dodati tip hints za vse route funkcije – implementirano v v1.8
 - [x] Dodati validacijo vnosnih podatkov (email, allowlist, normalizacija) – implementirano v v1.7
 - [x] Pisati unit teste za kritične funkcije (auth, csrf, normalizacija, config, audit, routes) – implementirano v v1.8
-- [ ] Alembic migracije namesto ročnih ALTER TABLE
-- [ ] Logging v datoteko namesto samo na stdout
+- [x] Alembic migracije namesto ročnih ALTER TABLE – implementirano v v1.12
+- [x] Logging v datoteko namesto samo na stdout – implementirano v v1.12
 
 ---
 
-*Zadnja posodobitev: 2026-02-24 (v1.11)*
+*Zadnja posodobitev: 2026-02-26 (v1.12)*

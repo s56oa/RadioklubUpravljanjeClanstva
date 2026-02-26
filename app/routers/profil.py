@@ -1,4 +1,5 @@
 import io
+from datetime import datetime, timezone
 
 import pyotp
 import segno
@@ -8,7 +9,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Uporabnik
+from ..models import Uporabnik, ZaupljivaNaprava
 from ..auth import require_login, hash_geslo, preveri_geslo, preveri_zahteve_gesla
 from ..csrf import get_csrf_token, csrf_protect
 
@@ -27,6 +28,16 @@ async def profil_stran(request: Request, db: Session = Depends(get_db)) -> Respo
     if not u:
         return RedirectResponse(url="/logout", status_code=302)
 
+    zaupljive_naprave = (
+        db.query(ZaupljivaNaprava)
+        .filter(
+            ZaupljivaNaprava.uporabnik_id == u.id,
+            ZaupljivaNaprava.expires_at > datetime.now(timezone.utc),
+        )
+        .order_by(ZaupljivaNaprava.created_at.desc())
+        .all()
+    )
+
     return templates.TemplateResponse(
         "profil/index.html",
         {
@@ -37,6 +48,8 @@ async def profil_stran(request: Request, db: Session = Depends(get_db)) -> Respo
             "geslo_spremenjeno": request.query_params.get("geslo") == "1",
             "tfa_aktivirana": request.query_params.get("2fa") == "1",
             "tfa_onemogocena": request.query_params.get("2fa_off") == "1",
+            "naprave_odjavil": request.query_params.get("naprave") == "0",
+            "zaupljive_naprave": zaupljive_naprave,
         },
     )
 
@@ -209,8 +222,12 @@ async def tfa_onemogoči(
     if u.totp_skrivnost and pyotp.TOTP(u.totp_skrivnost).verify(koda.strip(), valid_window=1):
         u.totp_skrivnost = None
         u.totp_aktiven = False
+        # Ob onemogočitvi 2FA izbrišemo tudi vse zaupljive naprave
+        db.query(ZaupljivaNaprava).filter(ZaupljivaNaprava.uporabnik_id == u.id).delete()
         db.commit()
-        return RedirectResponse(url="/profil?2fa_off=1", status_code=302)
+        response = RedirectResponse(url="/profil?2fa_off=1", status_code=302)
+        response.delete_cookie("_2fa_device")
+        return response
 
     return templates.TemplateResponse(
         "profil/index.html",
@@ -219,5 +236,25 @@ async def tfa_onemogoči(
             "user": user,
             "u": u,
             "napaka_2fa": "Napačna koda. 2FA ni bila onemogočena.",
+            "zaupljive_naprave": [],
         },
     )
+
+
+@router.post("/odjavi-naprave", response_class=HTMLResponse)
+async def odjavi_naprave(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    db.query(ZaupljivaNaprava).filter(
+        ZaupljivaNaprava.uporabnik_id == user["id"]
+    ).delete()
+    db.commit()
+    response = RedirectResponse(url="/profil?naprave=0", status_code=302)
+    response.delete_cookie("_2fa_device")
+    return response

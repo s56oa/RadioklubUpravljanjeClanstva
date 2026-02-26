@@ -1,6 +1,6 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-02-24 (v1.12)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-02-26 (v1.12)*
 
 ---
 
@@ -33,6 +33,9 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Allowlist za tip članstva | ✅ | v1.7 |
 | Audit log (prijave, ogledi, CRUD, izvozi) | ✅ | v1.7 |
 | TOTP dvostopenjska avtentikacija (opcijska, RFC 6238) | ✅ | v1.12 |
+| Zaupljive naprave (SHA-256 hashed token, 30-dnevni httponly cookie) | ✅ | v1.12 |
+| IP resolving prek X-Forwarded-For (ProxyHeadersMiddleware) | ✅ | v1.12 |
+| Audit log za 2FA in zaupljive naprave | ✅ | v1.12 |
 | XSS – Jinja2 auto-escape (`\| safe` samo za interni SVG QR) | ✅ | v1.0 |
 | SQL injection – SQLAlchemy ORM, parameterized queries | ✅ | v1.0 |
 
@@ -192,7 +195,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.2 | Security headers, rate limiting, session hardening, file upload limits |
 | v1.3 | CSRF zaščita, politika gesel, profil/sprememba gesla |
 | v1.7 | Audit log, validacija e-pošte, normalizacija vhodnih podatkov, allowlist tipov |
-| v1.12 | Opcijska TOTP 2FA (pyotp, RFC 6238); skrivnost shranjena šele po verifikaciji; rate limiting reuse |
+| v1.12 | Opcijska TOTP 2FA (pyotp, RFC 6238); skrivnost shranjena šele po verifikaciji; rate limiting reuse; zaupljive naprave (SHA-256 token, 30 dni); ProxyHeadersMiddleware (pravilni IP v audit logu) |
 
 ---
 
@@ -229,4 +232,14 @@ sqlite3 data/clanstvo.db "SELECT cas, uporabnik, ip FROM audit_log WHERE akcija=
 
 # Kdo ima aktivirano 2FA
 sqlite3 data/clanstvo.db "SELECT uporabnisko_ime, vloga FROM uporabniki WHERE totp_aktiven=1 AND aktiven=1;"
+
+# Zaupljive naprave (aktivne – ne potekle)
+sqlite3 data/clanstvo.db "
+SELECT u.uporabnisko_ime, n.created_at, n.expires_at, substr(n.user_agent, 1, 60)
+FROM zaupljive_naprave n JOIN uporabniki u ON u.id = n.uporabnik_id
+WHERE n.expires_at > datetime('now')
+ORDER BY n.created_at DESC;"
+
+# Izbriši vse zaupljive naprave (prisili vse 2FA uporabnike k OTP)
+sqlite3 data/clanstvo.db "DELETE FROM zaupljive_naprave;"
 ```

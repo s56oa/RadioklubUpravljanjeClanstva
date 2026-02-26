@@ -1,8 +1,15 @@
 import os
 import time
+import hashlib
+import secrets
 import logging
+from logging.handlers import RotatingFileHandler
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone, timedelta
+
+from alembic.config import Config as AlembicConfig
+from alembic import command as alembic_command
 
 import pyotp
 from fastapi import FastAPI, Request, Form, Depends
@@ -14,9 +21,9 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
-from sqlalchemy import text, inspect as sa_inspect
+from sqlalchemy import inspect as sa_inspect
 from .database import engine, SessionLocal, get_db
-from .models import Base, Uporabnik, Nastavitev, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
+from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
 from .auth import hash_geslo, preveri_geslo
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
@@ -80,6 +87,10 @@ class KlubContextMiddleware(BaseHTTPMiddleware):
 # Rate limiting za prijavo
 # ---------------------------------------------------------------------------
 
+def _device_token_hash(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 def _check_rate_limit(ip: str) -> bool:
     """Vrne True če je IP dovoljen, False če je zaklenjen."""
     zdaj = time.time()
@@ -93,52 +104,45 @@ def _record_failed_login(ip: str):
 
 
 # ---------------------------------------------------------------------------
-# DB migracije
+# Logging
 # ---------------------------------------------------------------------------
 
-def _migriraj_bazo():
-    """Doda manjkajoče stolpce v obstoječo bazo (brez Alembic)."""
+def _nastavi_logging() -> None:
+    """Doda RotatingFileHandler na root logger (data/app.log, 5 MB × 5)."""
+    log_path = os.path.join("data", "app.log")
+    fmt = logging.Formatter("%(asctime)s %(levelname)-8s %(name)s: %(message)s")
+    root = logging.getLogger()
+    if not any(isinstance(h, RotatingFileHandler) for h in root.handlers):
+        handler = RotatingFileHandler(
+            log_path, maxBytes=5 * 1024 * 1024, backupCount=5, encoding="utf-8"
+        )
+        handler.setFormatter(fmt)
+        root.addHandler(handler)
+        if root.level == logging.NOTSET:
+            root.setLevel(logging.INFO)
+
+
+# ---------------------------------------------------------------------------
+# DB migracije (Alembic)
+# ---------------------------------------------------------------------------
+
+def _run_migrations() -> None:
+    """Zažene Alembic migracije do najnovejše revizije.
+
+    Obstoječe baze brez Alembic zgodovine avtomatsko označi kot revizijo 001
+    (vse do v1.11 veljavne tabele), nato aplicira samo nove migracije.
+    """
+    ini_path = os.path.abspath(
+        os.path.join(os.path.dirname(__file__), "..", "alembic.ini")
+    )
+    cfg = AlembicConfig(ini_path)
     inspector = sa_inspect(engine)
     tables = inspector.get_table_names()
-    with engine.connect() as conn:
-        cols = [c["name"] for c in inspector.get_columns("clanarine")]
-        if "znesek" not in cols:
-            conn.execute(text("ALTER TABLE clanarine ADD COLUMN znesek TEXT"))
-            conn.commit()
-            logger.info("Migracija: dodan stolpec clanarine.znesek")
-
-        if "aktivnosti" in tables:
-            cols_akt = [c["name"] for c in inspector.get_columns("aktivnosti")]
-            if "delovne_ure" not in cols_akt:
-                conn.execute(text("ALTER TABLE aktivnosti ADD COLUMN delovne_ure REAL"))
-                conn.commit()
-                logger.info("Migracija: dodan stolpec aktivnosti.delovne_ure")
-
-        if "uporabniki" in tables:
-            cols_up = [c["name"] for c in inspector.get_columns("uporabniki")]
-            if "totp_skrivnost" not in cols_up:
-                conn.execute(text("ALTER TABLE uporabniki ADD COLUMN totp_skrivnost TEXT"))
-                conn.commit()
-                logger.info("Migracija: dodan stolpec uporabniki.totp_skrivnost")
-            if "totp_aktiven" not in cols_up:
-                conn.execute(text("ALTER TABLE uporabniki ADD COLUMN totp_aktiven BOOLEAN DEFAULT 0"))
-                conn.commit()
-                logger.info("Migracija: dodan stolpec uporabniki.totp_aktiven")
-
-        # Migracija tipov članstva iz starih na nova poimenovanja
-        stari_privzeti = "Redno\nDružinsko\nSimpatizerji\nMladi/dijaki/študenti\nInvalidi"
-        novi_privzeti = "\n".join(TIPI_CLANSTVA_PRIVZETO)
-        if "nastavitve" in tables:
-            n = conn.execute(
-                text("SELECT vrednost FROM nastavitve WHERE kljuc='tipi_clanstva'")
-            ).fetchone()
-            if n and n[0] and n[0].strip() == stari_privzeti:
-                conn.execute(
-                    text("UPDATE nastavitve SET vrednost=:v WHERE kljuc='tipi_clanstva'"),
-                    {"v": novi_privzeti},
-                )
-                conn.commit()
-                logger.info("Migracija: posodobljeni tipi članstva na nova poimenovanja")
+    if "alembic_version" not in tables and "clani" in tables:
+        logger.info("Obstoječa baza brez Alembic zgodovine – označujem kot revizija 001")
+        alembic_command.stamp(cfg, "001")
+    alembic_command.upgrade(cfg, "head")
+    logger.info("Alembic migracije uspešno zaključene")
 
 
 # ---------------------------------------------------------------------------
@@ -148,8 +152,8 @@ def _migriraj_bazo():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
-    Base.metadata.create_all(bind=engine)
-    _migriraj_bazo()
+    _nastavi_logging()
+    _run_migrations()
     db = SessionLocal()
     try:
         if db.query(Uporabnik).count() == 0:
@@ -269,7 +273,32 @@ async def login(
 
     if u and geslo_ok:
         if u.totp_aktiven and u.totp_skrivnost:
-            # 2FA zahtevano – preusmeri na OTP korak
+            # Preveri ali je naprava zaupljiva (zapomni si me)
+            device_token = request.cookies.get("_2fa_device")
+            if device_token:
+                token_hash = _device_token_hash(device_token)
+                zdaj = datetime.now(timezone.utc)
+                naprava = (
+                    db.query(ZaupljivaNaprava)
+                    .filter(
+                        ZaupljivaNaprava.uporabnik_id == u.id,
+                        ZaupljivaNaprava.token_hash == token_hash,
+                        ZaupljivaNaprava.expires_at > zdaj,
+                    )
+                    .first()
+                )
+                if naprava:
+                    request.session.clear()
+                    request.session["uporabnik"] = {
+                        "id": u.id,
+                        "ime": u.ime_priimek or u.uporabnisko_ime,
+                        "vloga": u.vloga,
+                        "uporabnisko_ime": u.uporabnisko_ime,
+                    }
+                    log_akcija(db, uporabnisko_ime, "login_2fa_zaupljiva",
+                               f"Prijava z zaupljivo napravo: {uporabnisko_ime}", ip=ip)
+                    return RedirectResponse(url="/clani", status_code=302)
+            # Ni zaupljive naprave – zahtevaj OTP kodo
             request.session.clear()
             request.session["_2fa_cakanje"] = u.uporabnisko_ime
             log_akcija(db, uporabnisko_ime, "login_2fa_caka", f"2FA čakanje: {uporabnisko_ime}", ip=ip)
@@ -306,6 +335,7 @@ async def login_2fa_stran(request: Request) -> Response:
 async def login_2fa(
     request: Request,
     koda: str = Form(...),
+    zapomni_naprava: str = Form(""),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -337,7 +367,26 @@ async def login_2fa(
         }
         logger.info(f"Uspešna 2FA prijava: {uporabnisko_ime} ({ip})")
         log_akcija(db, uporabnisko_ime, "login_ok", f"Prijava (2FA): {uporabnisko_ime}", ip=ip)
-        return RedirectResponse(url="/clani", status_code=302)
+        response = RedirectResponse(url="/clani", status_code=302)
+        if zapomni_naprava == "1":
+            token = secrets.token_urlsafe(32)
+            token_hash = _device_token_hash(token)
+            expires = datetime.now(timezone.utc) + timedelta(days=30)
+            db.add(ZaupljivaNaprava(
+                uporabnik_id=u.id,
+                token_hash=token_hash,
+                expires_at=expires,
+                user_agent=request.headers.get("user-agent", "")[:200],
+            ))
+            db.commit()
+            response.set_cookie(
+                "_2fa_device", token,
+                max_age=30 * 24 * 3600,
+                httponly=True,
+                samesite="strict",
+            )
+            log_akcija(db, uporabnisko_ime, "login_2fa_zaupljiva_nova", "Nova zaupljiva naprava shranjena", ip=ip)
+        return response
 
     _record_failed_login(ip)
     logger.warning(f"Napačna 2FA koda: {uporabnisko_ime} ({ip})")
@@ -353,10 +402,19 @@ async def logout(request: Request) -> RedirectResponse:
     uporabnik_info = request.session.get("uporabnik")
     username = uporabnik_info.get("uporabnisko_ime") if uporabnik_info else None
     ip = request.client.host if request.client else None
+    device_token = request.cookies.get("_2fa_device")
     request.session.clear()
     db = SessionLocal()
     try:
+        if device_token:
+            token_hash = _device_token_hash(device_token)
+            db.query(ZaupljivaNaprava).filter(
+                ZaupljivaNaprava.token_hash == token_hash
+            ).delete()
+            db.commit()
         log_akcija(db, username, "logout", ip=ip)
     finally:
         db.close()
-    return RedirectResponse(url="/login", status_code=302)
+    response = RedirectResponse(url="/login", status_code=302)
+    response.delete_cookie("_2fa_device")
+    return response

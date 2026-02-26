@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.12 | Datum: 2026-02-24*
+*Različica 1.12 | Datum: 2026-02-26*
 
 ---
 
@@ -16,6 +16,9 @@
 4. [Konfiguracija (.env)](#4-konfiguracija-env)
 5. [HTTPS z Nginx reverse proxy](#5-https-z-nginx-reverse-proxy)
 6. [Vzdrževanje](#6-vzdrževanje)
+   - [Backup baze podatkov](#backup-baze-podatkov)
+   - [Čiščenje audit loga](#čiščenje-audit-loga)
+   - [Pregled dnevnika aplikacije](#pregled-dnevnika-aplikacije)
 7. [Posodobitev aplikacije](#7-posodobitev-aplikacije)
 8. [CI/CD – GitHub Actions in Container Registry](#8-cicd--github-actions-in-container-registry)
 9. [Lokalni razvoj brez Dockerja](#9-lokalni-razvoj-brez-dockerja)
@@ -55,6 +58,10 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 | Predloge | Jinja2 | 3.1 |
 | Avtentikacija | SessionMiddleware + bcrypt | — |
 | 2FA (TOTP) | pyotp + segno (SVG QR) | 2.9 / 1.6 |
+| Zaupljive naprave | SHA-256 token v SQLite, httponly cookie 30 dni | — |
+| IP resolving | uvicorn ProxyHeadersMiddleware (X-Forwarded-For) | — |
+| Migracije | Alembic | 1.13+ |
+| Logging | RotatingFileHandler → data/app.log (5 MB × 5) | — |
 | Kontekst kluba | KlubContextMiddleware → request.state | — |
 | Frontend | Bootstrap 5.3 + DataTables + Bootstrap Icons | CDN |
 | Excel | openpyxl | 3.1 |
@@ -64,9 +71,9 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 ```
 UpravljanjeClanstva/
 ├── app/
-│   ├── main.py           – FastAPI app, middleware (Security, Session, KlubContext), login/logout, migracije
+│   ├── main.py           – FastAPI app, middleware, login/logout/2FA, _run_migrations(), _nastavi_logging()
 │   ├── database.py       – SQLite engine, get_db()
-│   ├── models.py         – SQLAlchemy modeli
+│   ├── models.py         – SQLAlchemy modeli (vključno ZaupljivaNaprava)
 │   ├── auth.py           – gesla, vloge, zaščita endpointov
 │   ├── config.py         – branje nastavitev iz baze
 │   ├── csrf.py           – CSRF token zaščita
@@ -74,9 +81,17 @@ UpravljanjeClanstva/
 │   ├── routers/          – FastAPI routerji po področjih
 │   ├── templates/        – Jinja2 HTML predloge
 │   └── static/           – CSS, ikone
-├── data/                 – SQLite baza (Docker volume, ni v image-u)
-│   └── clanstvo.db
+├── alembic/              – Alembic migracije
+│   ├── env.py
+│   ├── script.py.mako
+│   └── versions/
+│       ├── 001_initial_schema.py   – vse tabele do v1.11
+│       └── 002_zaupljive_naprave.py
+├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
+│   ├── clanstvo.db
+│   └── app.log           – rotating log (5 MB × 5)
 ├── tests/                – pytest testi
+├── alembic.ini
 ├── Dockerfile
 ├── docker-compose.yml
 ├── requirements.txt
@@ -590,43 +605,150 @@ sudo systemctl status certbot.timer
 
 ## 6. Vzdrževanje
 
-### Ročni backup baze podatkov
+Mapa `maintenance/` vsebuje Python skripte za rutinska vzdrževalna opravila. Skripte so samostojne – ne zahtevajo zagona aplikacije in berejo pot do baze iz okoljske spremenljivke `DATABASE_URL` (ali privzeto `data/clanstvo.db`).
 
-Baza je na `./data/clanstvo.db`. Kopirajte jo na varno lokacijo:
-
-```bash
-# Lokalni backup z datumom
-cp data/clanstvo.db backups/clanstvo_$(date +%Y%m%d).db
-
-# Backup na oddaljeni strežnik (primer z rsync)
-rsync -az data/clanstvo.db user@backup-server:/backup/radioklub/
+```
+maintenance/
+├── backup_baze.py       – live/hot backup z timestampom v imenu
+└── cisti_audit_log.py   – čiščenje starih vnosov iz audit_log
 ```
 
-### Samodejni backup (cron)
+---
+
+### Backup baze podatkov
+
+Skripta `backup_baze.py` ustvari konsistenten snapshot delujočo baze brez zaklepanja ali zaustavitve aplikacije (SQLite Online Backup API).
+
+**Ime datoteke** vsebuje lokalni timestamp: `clanstvo_YYYYMMDD_HHMMSS.db`
+
+#### Osnovna uporaba
 
 ```bash
-# Dodajte v crontab (crontab -e):
-# Dnevni backup ob 2:00
-0 2 * * * cp /opt/radioklub/data/clanstvo.db /backup/clanstvo_$(date +\%Y\%m\%d).db
+# Backup v privzeto mapo data/backups/
+python3 maintenance/backup_baze.py
 
-# Brisanje backupov starejših od 30 dni
-0 3 * * * find /backup/ -name "clanstvo_*.db" -mtime +30 -delete
+# Backup v poljubno mapo
+python3 maintenance/backup_baze.py --mapa /backup/radioklub
+
+# Backup in ohrani samo zadnjih 30 datotek (starejše se samodejno izbrišejo)
+python3 maintenance/backup_baze.py --mapa /backup/radioklub --ohrani 30
 ```
 
-### Čiščenje Docker virov
+#### Argumenti
+
+| Argument | Privzeto | Opis |
+|---|---|---|
+| `--db POT` | `data/clanstvo.db` | Pot do izvorne baze |
+| `--mapa MAPA` | `data/backups/` | Ciljna mapa (ustvari, če ne obstaja) |
+| `--ohrani N` | 0 (vse) | Ohrani zadnjih N backupov, starejše izbriši |
+
+#### Samodejni dnevni backup (cron)
 
 ```bash
-# Odstranite neuporabljene plasti in vsebniki
-docker system prune -f
+# crontab -e  (na Linux strežniku ali Raspberry Pi)
 
-# Pregled prostora
-docker system df
+# Dnevni backup ob 2:00, ohrani zadnjih 30
+0 2 * * *  cd /opt/radioklub-clanstvo && python3 maintenance/backup_baze.py --mapa /backup/radioklub --ohrani 30
 ```
+
+#### Backup v Docker vsebniku
+
+```bash
+# Enkraten backup iz tekočega vsebnika
+docker compose exec app python3 maintenance/backup_baze.py --ohrani 30
+
+# Cron na gostitelju, ki kliče docker exec
+0 2 * * *  docker compose -f /opt/radioklub-clanstvo/docker-compose.yml exec -T app \
+             python3 maintenance/backup_baze.py --ohrani 30
+```
+
+> Backup datoteke se shranijo v Docker volume (`./data/backups/`). Za hranjenje izven volumna navedite absolutno pot na gostitelju z `--mapa`.
+
+#### Backup na oddaljeni strežnik (rsync)
+
+```bash
+# Po lokalnem backupu sinhroniziraj na NAS ali oddaljeni strežnik
+python3 maintenance/backup_baze.py --mapa /tmp/radioklub-backup --ohrani 7
+rsync -az /tmp/radioklub-backup/ user@backup-server:/backup/radioklub/
+```
+
+---
+
+### Čiščenje audit loga
+
+Skripta `cisti_audit_log.py` briše vnose iz tabele `audit_log` ki so starejši od nastavljenega števila dni. Minimalna dovoljena vrednost je **30 dni**.
+
+#### Osnovna uporaba
+
+```bash
+# Interaktivno (prikaže statistiko, vpraša za potrditev)
+python3 maintenance/cisti_audit_log.py --dni 365
+
+# Predogled brez brisanja
+python3 maintenance/cisti_audit_log.py --dni 365 --dry-run
+
+# Brez potrditve (za cron)
+python3 maintenance/cisti_audit_log.py --dni 365 -y
+```
+
+#### Argumenti
+
+| Argument | Privzeto | Opis |
+|---|---|---|
+| `--dni N` | 90 | Starost za brisanje v dneh (minimum: 30) |
+| `--db POT` | `data/clanstvo.db` | Pot do baze |
+| `--dry-run` | – | Pokaži statistiko, ne briši |
+| `-y` / `--yes` | – | Brez interaktivne potrditve |
+
+Skripta vrne izhodni kodi `0` (uspeh) ali `1` (napaka ali neveljavni argumenti).
+
+#### Mesečno čiščenje (cron)
+
+```bash
+# crontab -e
+
+# Prvega v mesecu ob 3:00, ohrani zadnje leto
+0 3 1 * *  cd /opt/radioklub-clanstvo && python3 maintenance/cisti_audit_log.py --dni 365 -y
+```
+
+#### Čiščenje v Docker vsebniku
+
+```bash
+# Enkratno čiščenje
+docker compose exec app python3 maintenance/cisti_audit_log.py --dni 365 -y
+
+# Cron na gostitelju
+0 3 1 * *  docker compose -f /opt/radioklub-clanstvo/docker-compose.yml exec -T app \
+             python3 maintenance/cisti_audit_log.py --dni 365 -y
+```
+
+---
+
+### Pregled dnevnika aplikacije
+
+Aplikacija piše dnevnik v `data/app.log` z avtomatsko rotacijo (5 MB × 5 datotek).
+
+```bash
+# Zadnjih 50 vrstic dnevnika
+tail -50 data/app.log
+
+# Sledenje v živo
+tail -f data/app.log
+
+# Samo napake
+grep -i "error\|napaka\|warning" data/app.log | tail -30
+
+# V Docker vsebniku (stdout + datoteka)
+docker compose logs --tail=50
+docker compose logs -f
+```
+
+---
 
 ### Pregled zdravja vsebnika
 
 ```bash
-docker compose ps       # STATUS: healthy
+docker compose ps       # STATUS: running
 docker compose logs -f  # sledenje logom v živo
 ```
 
@@ -642,6 +764,16 @@ sqlite3 data/clanstvo.db \
 sqlite3 data/clanstvo.db \
   "SELECT datetime(cas,'localtime'), uporabnik, ip \
    FROM audit_log WHERE akcija='login_fail' ORDER BY cas DESC LIMIT 20;"
+```
+
+### Čiščenje Docker virov
+
+```bash
+# Odstranite neuporabljene plasti in vsebniki
+docker system prune -f
+
+# Pregled prostora
+docker system df
 ```
 
 ---
@@ -665,7 +797,7 @@ docker compose logs --tail=20
 
 > Nov Docker image je samodejno zgrajen in objavljen ob vsaki posodobitvi kode. Lokalni build ni potreben.
 
-Migracije baze se izvedejo samodejno ob zagonu (funkcija `_migriraj_bazo()` v `main.py`). **Podatki v `./data/` se ob posodobitvi ne izbrišejo.**
+Migracije baze se izvedejo samodejno ob zagonu prek Alembic (`_run_migrations()` v `main.py`). **Podatki v `./data/` se ob posodobitvi ne izbrišejo.**
 
 ---
 
@@ -690,8 +822,8 @@ Workflow za avtentikacijo v GHCR uporablja samodejni `secrets.GITHUB_TOKEN` – 
 
 Za izdajo nove verzije zadostuje:
 ```bash
-git tag v1.13
-git push origin v1.13
+git tag v1.12
+git push origin v1.12
 ```
 
 ### Prednosti za končne uporabnike
@@ -838,13 +970,35 @@ audit_log
 ├── ip
 ├── akcija (String, indexed)
 └── opis
+
+zaupljive_naprave                   ← v1.12 (2FA "zapomni napravo")
+├── id (PK)
+├── uporabnik_id (FK → uporabniki.id, indexed)
+├── token_hash (String)             ← SHA-256 hash piškotka
+├── created_at (DateTime)
+├── expires_at (DateTime)           ← ustvari + 30 dni
+└── user_agent (String, nullable)
 ```
 
-### Migracije
+### Migracije (Alembic)
 
-Aplikacija ne uporablja Alembic. Ročne migracije so implementirane v `app/main.py → _migriraj_bazo()` in se izvedejo ob vsakem zagonu. Migracija z `ALTER TABLE` se izvede samo, če stolpec še ne obstaja.
+Od v1.12 aplikacija za migracije sheme uporablja **Alembic** (zamenjal ročni `_migriraj_bazo()`).
 
-Nove tabele ustvari `Base.metadata.create_all(bind=engine)` samodejno.
+Funkcija `_run_migrations()` v `main.py` se pokliče ob vsakem zagonu:
+
+```python
+# Obstoječe baze brez Alembic zgodovine se avtomatsko označijo kot 001
+if "alembic_version" not in tables and "clani" in tables:
+    alembic_command.stamp(cfg, "001")
+alembic_command.upgrade(cfg, "head")
+```
+
+| Revizija | Vsebina |
+|----------|---------|
+| `001` | Vse tabele do v1.11 (clani, clanarine, aktivnosti, skupine, clan_skupina, uporabniki, nastavitve, audit_log) |
+| `002` | Nova tabela `zaupljive_naprave` (2FA "zapomni napravo") |
+
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicira samo `002`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 
@@ -852,20 +1006,27 @@ Nove tabele ustvari `Base.metadata.create_all(bind=engine)` samodejno.
 
 ### Login tok z 2FA
 
-Ko ima uporabnik aktivirano dvostopenjsko avtentikacijo, je potek prijave dvostopenjski:
+Ko ima uporabnik aktivirano dvostopenjsko avtentikacijo, je potek prijave:
 
 ```
 POST /login (geslo OK, totp_aktiven=True)
-   → session["_2fa_cakanje"] = uporabnisko_ime
-   → redirect GET /login/2fa
+   ├── Preveri _2fa_device cookie → ZaupljivaNaprava (token_hash, expires_at > zdaj)?
+   │   └── DA: preskoči 2FA, nastavi session["uporabnik"] → redirect /clani
+   │       (log: login_2fa_zaupljiva)
+   └── NE: session["_2fa_cakanje"] = uporabnisko_ime → redirect GET /login/2fa
+           (log: login_2fa_caka)
 
-POST /login/2fa (koda)
+POST /login/2fa (koda, zapomni_naprava)
    → pyotp.TOTP(skrivnost).verify(koda, valid_window=1)
    → OK: session["uporabnik"] = {...}  → redirect /clani
+   │   + če zapomni_naprava="1": ustvari ZaupljivaNaprava + nastavi _2fa_device cookie (30 dni)
+   │     (log: login_2fa_zaupljiva_nova)
    → FAIL: rate limit incr, log login_2fa_napaka, vrni stran z napako
 ```
 
-Aktivacija poteka prek `/profil/2fa-nastavi` (GET: generiraj QR SVG, POST `/profil/2fa-potrdi`: shrani skrivnost šele po uspešni verifikaciji). Onemogočanje zahteva veljavno OTP kodo (`POST /profil/2fa-onemogoči`).
+Aktivacija: `/profil/2fa-nastavi` (QR SVG) → `/profil/2fa-potrdi` (shrani skrivnost šele po verifikaciji).
+Onemogočanje: `POST /profil/2fa-onemogoči` zahteva veljavno OTP kodo; samodejno izbriše vse zaupljive naprave.
+Upravljanje naprav: `POST /profil/odjavi-naprave` izbriše vse zaupljive naprave za tekočega uporabnika.
 
 Audit log akcije v zvezi z 2FA:
 
@@ -873,6 +1034,8 @@ Audit log akcije v zvezi z 2FA:
 |--------|------|
 | `login_2fa_caka` | Geslo pravilno, čakanje na OTP kodo |
 | `login_2fa_napaka` | Napačna OTP koda pri prijavi |
+| `login_2fa_zaupljiva` | Prijava preskočila 2FA prek zaupljive naprave |
+| `login_2fa_zaupljiva_nova` | Nova zaupljiva naprava shranjena po uspešni 2FA |
 | `2fa_aktivirana` | Uporabnik je aktiviral 2FA |
 | `2fa_onemogocena` | Uporabnik je onemogočil 2FA |
 

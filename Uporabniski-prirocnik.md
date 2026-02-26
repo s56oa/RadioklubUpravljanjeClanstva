@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.12 | Datum: 2026-02-24*
+*Različica 1.12 | Datum: 2026-02-26*
 
 ---
 
@@ -69,6 +69,15 @@ Ob napačnih podatkih se prikaže sporočilo o napaki. Po 10 zaporednih neuspeš
 2. Odčitajte **6-mestno kodo** za ta račun.
 3. Vnesite kodo v polje **Koda** in kliknite **Potrdi**.
 4. Koda je veljavna 30 sekund – če poteče med vnosom, počakajte naslednjo.
+
+#### Zapomni si napravo (30 dni)
+
+Na strani z vnosom OTP kode je možnost **Zapomni si to napravo (30 dni)**. Če jo označite:
+- Aplikacija shrani varni žeton v brskalnik (httponly piškotek).
+- Na tej napravi naslednje 30 dni po vpisu gesla **ne boste morali vnašati OTP kode**.
+- Na vaši profilni strani vidite seznam zaupljivih naprav in jih lahko kadar koli prekličete.
+
+> Zaupljivo napravo shranite samo na lastnih napravah – **ne na skupnih ali javnih računalnikih.**
 
 Za preklic prijave kliknite **Prekliči prijavo** (vrnete se na prijavno stran, seja se počisti).
 
@@ -390,6 +399,8 @@ S spustnim seznamom **Akcija** filtrirajte po vrsti dejanja:
 | `login_fail` | Neuspešna prijava |
 | `login_2fa_caka` | Geslo pravilno, čakanje na OTP kodo |
 | `login_2fa_napaka` | Napačna OTP koda pri prijavi |
+| `login_2fa_zaupljiva` | Prijava preskočila 2FA prek zaupljive naprave |
+| `login_2fa_zaupljiva_nova` | Nova zaupljiva naprava shranjena po uspešni 2FA |
 | `logout` | Odjava |
 | `clan_ogled` | Ogled kartice člana |
 | `clan_dodan` | Dodan novi član |
@@ -443,10 +454,18 @@ Na profilni strani je razdelek **Dvostopenjska avtentikacija (2FA)**, ki kaže t
 
 1. V razdelku 2FA vnesite 6-mestno kodo iz vaše aplikacije za avtentikacijo.
 2. Kliknite **Onemogoči 2FA**.
-3. Ob uspešni deaktivaciji se prikaže obvestilo.
+3. Ob uspešni deaktivaciji se prikaže obvestilo. Vse zaupljive naprave se samodejno prekličejo.
 
 > Za onemogočanje je potrebna veljavna koda – gesla ni treba vnašati.
 
+#### Zaupljive naprave
+
+Ko je 2FA aktivirana, se pod statusom prikaže seznam shranjenih zaupljivih naprav z:
+- datumom shranitve,
+- skrajšanim opisom brskalnika/naprave (User-Agent).
+
+Z gumbom **Odjavi vse naprave** prekličete vse shranjene žetone naenkrat. Ob naslednji prijavi boste morali znova vnesti OTP kodo.
+
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.12*
+*Radio klub Člani – Upravljanje Članstva – različica 1.12 (2026-02-26)*
