@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY app/ ./app/
 COPY alembic/ ./alembic/
 COPY alembic.ini .
+COPY LICENSE .
 
 # Ustvari mapo za bazo podatkov
 RUN mkdir -p data
