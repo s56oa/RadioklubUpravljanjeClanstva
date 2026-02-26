@@ -133,6 +133,8 @@ UVOZ_STOLPCI_PRIVZETO: dict[str, str] = {
     "email":              "elektronska posta, e-mail, email",
     "soglasje":           "soglasje op, soglasje",
     "izjava":             "izjava",
+    "es_stevilka":        "ES številka, es stevilka, es",
+    "opombe":             "opombe",
 }
 
 
@@ -317,6 +319,8 @@ KLJUCI_UVOZ = [
     ("uvoz_stolpec_email",              "E-poštni naslov"),
     ("uvoz_stolpec_soglasje",           "Soglasje OP"),
     ("uvoz_stolpec_izjava",             "Izjava"),
+    ("uvoz_stolpec_es_stevilka",        "ES številka"),
+    ("uvoz_stolpec_opombe",             "Opombe"),
 ]
 
 
@@ -460,6 +464,12 @@ def _uvozi_workbook(vsebina: bytes, db: Session, mapping: dict[str, list[str]]) 
         if tip not in tipi:
             tip = tipi[0] if tipi else "Osebni"
 
+        es_str = _col(row, headers, *mapping["es_stevilka"])
+        try:
+            es_stevilka = int(es_str) if es_str else None
+        except (ValueError, TypeError):
+            es_stevilka = None
+
         clan = Clan(
             priimek=priimek_n,
             ime=ime_n,
@@ -475,6 +485,8 @@ def _uvozi_workbook(vsebina: bytes, db: Session, mapping: dict[str, list[str]]) 
             soglasje_op=_col(row, headers, *mapping["soglasje"]) or None,
             izjava=_col(row, headers, *mapping["izjava"]) or None,
             veljavnost_rd=_parse_rd(row, headers, mapping["veljavnost_rd"]),
+            es_stevilka=es_stevilka,
+            opombe=_col(row, headers, *mapping["opombe"]) or None,
             aktiven=True,
         )
         db.add(clan)

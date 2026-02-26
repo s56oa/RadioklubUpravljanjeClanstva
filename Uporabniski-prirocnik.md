@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.12 | Datum: 2026-02-26*
+*Različica 1.13 | Datum: 2026-02-26*
 
 ---
 
@@ -85,7 +85,7 @@ Za preklic prijave kliknite **Prekliči prijavo** (vrnete se na prijavno stran, 
 
 Kliknite na svoje ime v zgornjem desnem kotu navigacijske vrstice, nato izberite **Odjava**.
 
-Seja samodejno poteče po 1 uri neaktivnosti.
+Seja samodejno poteče po 30 minutah neaktivnosti.
 
 ---
 
@@ -250,8 +250,7 @@ Natančna imena stolpcev so nastavljiva v sekciji **Nastavitve uvoza** na strani
 
 1. V navigaciji kliknite **Izvoz/Uvoz** → **Uvozi iz Excel**.
 2. Izberite `.xlsx` datoteko (max. 10 MB).
-3. Izberite **leto** za evidenco plačila.
-4. Kliknite **Predogled uvoza**.
+3. Kliknite **Predogled uvoza**.
 
 Aplikacija parsira datoteko in prikaže:
 - **Novi člani** – ki še ne obstajajo v bazi (po priimku in imenu).
@@ -264,10 +263,11 @@ Preglejte seznam novih članov in kliknite **Potrdi uvoz**. Za preklic kliknite 
 ### Kaj se uvozi
 
 Za vsakega novega člana:
-- vsi razpoložljivi podatki (naslov, klicni znak, tip, razred, kontakti, soglasje, veljavnost RD),
-- plačilo članarine za izbrano leto (če je stolpec s tem letom prisoten in ni prazen).
+- vsi razpoložljivi podatki (naslov, klicni znak, tip, razred, kontakti, soglasje, veljavnost RD, ES-številka, opombe).
 
 Obstoječi člani se ne posodabljajo – pri ponovnem uvozu istega člana se vnos preskoči.
+
+> **Uvoz plačil** je ločen postopek (gumb *Uvozi plačila iz Excel* nižje na isti strani).
 
 ### Nastavitev imen stolpcev
 
@@ -343,7 +343,7 @@ Prilagodite sezname vrednosti, ki se pojavljajo v spustnih menijih pri vnosu in 
 
 **Privzeti tipi članstva:** Osebni, Družinski, Simpatizerji, Mladi, Invalid
 
-**Privzeti operaterski razredi:** A, N
+**Privzeti operaterski razredi:** A, N, A - CW, N - CW
 
 Spremembe uveljavite s klikom **Shrani nastavitve**.
 
@@ -369,7 +369,7 @@ Kliknite **Uredi** ob uporabniku. Spremenite ime, geslo ali vlogo. Polje *Aktive
 
 ### Ponastavitev gesla
 
-Kliknite **Ponastavi geslo**. Aplikacija ustvari začasno 12-znakovno geslo in ga prikaže enkrat (shranjeno je samo v šifrirani obliki). Začasno geslo takoj sporočite uporabniku – ta ga mora ob naslednji prijavi zamenjati prek **Moj profil**.
+Kliknite **Ponastavi geslo**. Aplikacija ustvari začasno 16-znakovno geslo in ga prikaže enkrat (shranjeno je samo v šifrirani obliki). Začasno geslo takoj sporočite uporabniku – ta ga mora ob naslednji prijavi zamenjati prek **Moj profil**.
 
 > Admin ne more videti gesel. Gesla so shranjena samo v obliki bcrypt zgoščene vrednosti.
 
@@ -468,4 +468,4 @@ Z gumbom **Odjavi vse naprave** prekličete vse shranjene žetone naenkrat. Ob n
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.12 (2026-02-26)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.13 (2026-02-26)*

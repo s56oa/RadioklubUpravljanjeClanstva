@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, Float, ForeignKey, Table
+from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, Float, ForeignKey, Table, Index
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -21,7 +21,7 @@ TIPI_CLANSTVA_PRIVZETO = [
     "Invalid",
 ]
 
-OPERATERSKI_RAZREDI_PRIVZETO = ["A", "N"]
+OPERATERSKI_RAZREDI_PRIVZETO = ["A", "N", "A - CW", "N - CW"]
 
 VLOGE = ["admin", "urednik", "bralec"]
 
@@ -135,3 +135,14 @@ class ZaupljivaNaprava(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     expires_at = Column(DateTime(timezone=True), nullable=False)
     user_agent = Column(String, nullable=True)
+
+
+class LoginPoizkus(Base):
+    """Neuspeli poskusi prijave za persistentni rate limiting."""
+    __tablename__ = "login_poskusi"
+
+    id = Column(Integer, primary_key=True)
+    ip = Column(String, nullable=False)
+    cas = Column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (Index("ix_login_poskusi_ip_cas", "ip", "cas"),)

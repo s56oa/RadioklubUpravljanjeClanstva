@@ -4,7 +4,6 @@ import hashlib
 import secrets
 import logging
 from logging.handlers import RotatingFileHandler
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
 
@@ -23,7 +22,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from sqlalchemy import inspect as sa_inspect
 from .database import engine, SessionLocal, get_db
-from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
+from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
 from .auth import hash_geslo, preveri_geslo
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
@@ -35,6 +34,17 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
+APP_VERSION = "1.13"
+APP_RELEASE_DATE = "2026-02-26"
+
+# Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
+try:
+    _license_path = os.path.join(os.path.dirname(__file__), "..", "LICENSE")
+    with open(_license_path, "r", encoding="utf-8") as _f:
+        APP_LICENSE = _f.read().strip()
+except Exception:
+    APP_LICENSE = "Licenca ni dostopna."
+
 PRIVZETE_NASTAVITVE = {
     "klub_ime": ("", "Polno ime kluba"),
     "klub_oznaka": ("", "Klicni znak / oznaka kluba"),
@@ -45,10 +55,10 @@ PRIVZETE_NASTAVITVE = {
     "operaterski_razredi": ("\n".join(OPERATERSKI_RAZREDI_PRIVZETO), "Operaterski razredi (ena vrednost na vrstico)"),
 }
 
-# Preprosta rate-limiting tabela: {ip: [timestamp, ...]}
-_login_attempts: dict = defaultdict(list)
 _MAX_ATTEMPTS = 10        # max neuspešnih prijav
 _LOCKOUT_SECONDS = 900    # zaklepanje 15 minut
+_INACTIVITY_SECONDS = 30 * 60  # iztok seje ob neaktivnosti (30 min)
+_MAX_BODY_BYTES = 1 * 1024 * 1024  # max velikost normalnega POST zahtevka (1 MB)
 
 
 # ---------------------------------------------------------------------------
@@ -66,8 +76,47 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
+    """Zavrne POST/PUT/PATCH zahteve z body > 1 MB (razen /izvoz/ ki ima lastno omejitev)."""
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("POST", "PUT", "PATCH"):
+            if not request.url.path.startswith("/izvoz/"):
+                content_length = request.headers.get("content-length")
+                if content_length:
+                    try:
+                        if int(content_length) > _MAX_BODY_BYTES:
+                            from fastapi.responses import PlainTextResponse
+                            return PlainTextResponse(
+                                "Zahtevek je prevelik (max 1 MB).", status_code=413
+                            )
+                    except ValueError:
+                        pass
+        return await call_next(request)
+
+
+class InactivityTimeoutMiddleware(BaseHTTPMiddleware):
+    """Odjavi uporabnika po 30 minutah neaktivnosti."""
+
+    _SKIP_PATHS_EXACT = {"/login", "/login/2fa", "/logout", "/health"}
+    _SKIP_PATHS_PREFIX = ("/static",)
+
+    async def dispatch(self, request: Request, call_next):
+        path = request.url.path
+        skip = path in self._SKIP_PATHS_EXACT or any(
+            path.startswith(p) for p in self._SKIP_PATHS_PREFIX
+        )
+        if not skip and request.session.get("uporabnik"):
+            last_active = request.session.get("_last_active")
+            if last_active is not None and time.time() - last_active > _INACTIVITY_SECONDS:
+                request.session.clear()
+                return RedirectResponse(url="/login?timeout=1", status_code=302)
+            request.session["_last_active"] = time.time()
+        return await call_next(request)
+
+
 class KlubContextMiddleware(BaseHTTPMiddleware):
-    """Na vsako zahtevo doda request.state.klub_oznaka in request.state.klub_ime iz baze."""
+    """Na vsako zahtevo doda request.state.klub_oznaka/klub_ime iz baze in statične app podatke."""
     async def dispatch(self, request: Request, call_next):
         db = SessionLocal()
         try:
@@ -80,6 +129,9 @@ class KlubContextMiddleware(BaseHTTPMiddleware):
             request.state.klub_ime = ""
         finally:
             db.close()
+        request.state.app_version = APP_VERSION
+        request.state.app_release_date = APP_RELEASE_DATE
+        request.state.app_license = APP_LICENSE
         return await call_next(request)
 
 
@@ -91,16 +143,21 @@ def _device_token_hash(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
-def _check_rate_limit(ip: str) -> bool:
-    """Vrne True če je IP dovoljen, False če je zaklenjen."""
-    zdaj = time.time()
-    cutoff = zdaj - _LOCKOUT_SECONDS
-    _login_attempts[ip] = [t for t in _login_attempts[ip] if t > cutoff]
-    return len(_login_attempts[ip]) < _MAX_ATTEMPTS
+def _check_rate_limit(ip: str, db: Session) -> bool:
+    """Vrne True če je IP dovoljen, False če je zaklenjen. Sproti čisti stare vnose."""
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=_LOCKOUT_SECONDS)
+    db.query(LoginPoizkus).filter(LoginPoizkus.cas < cutoff).delete(synchronize_session=False)
+    db.commit()
+    count = db.query(LoginPoizkus).filter(
+        LoginPoizkus.ip == ip,
+        LoginPoizkus.cas >= cutoff,
+    ).count()
+    return count < _MAX_ATTEMPTS
 
 
-def _record_failed_login(ip: str):
-    _login_attempts[ip].append(time.time())
+def _record_failed_login(ip: str, db: Session) -> None:
+    db.add(LoginPoizkus(ip=ip, cas=datetime.now(timezone.utc)))
+    db.commit()
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +244,9 @@ app = FastAPI(title="Radio klub Člani", lifespan=lifespan)
 # Varnostni headers (pred session middleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
+# Inaktivni timeout – mora biti ZNOTRAJ SessionMiddleware (dostop do request.session)
+app.add_middleware(InactivityTimeoutMiddleware)
+
 # Session z varnostnimi zastavicami
 app.add_middleware(
     SessionMiddleware,
@@ -195,6 +255,9 @@ app.add_middleware(
     same_site="strict",    # Zaščita pred CSRF
     https_only=False,      # Ostane False tudi pri HTTPS (HSTS na reverse proxy-u zadostuje)
 )
+
+# Omejitev velikosti POST zahtevkov – zunaj Session, zavrne zgodaj
+app.add_middleware(ContentSizeLimitMiddleware)
 
 app.add_middleware(KlubContextMiddleware)
 
@@ -238,7 +301,8 @@ async def root(request: Request) -> RedirectResponse:
 async def login_stran(request: Request) -> Response:
     if request.session.get("uporabnik"):
         return RedirectResponse(url="/clani", status_code=302)
-    return templates.TemplateResponse("login.html", {"request": request})
+    timeout = request.query_params.get("timeout") == "1"
+    return templates.TemplateResponse("login.html", {"request": request, "timeout": timeout})
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -252,7 +316,7 @@ async def login(
     ip = request.client.host if request.client else "unknown"
 
     # Rate limiting
-    if not _check_rate_limit(ip):
+    if not _check_rate_limit(ip, db):
         logger.warning(f"Preveč poskusov prijave z IP {ip}")
         return templates.TemplateResponse(
             "login.html",
@@ -315,7 +379,7 @@ async def login(
         log_akcija(db, uporabnisko_ime, "login_ok", f"Prijava: {uporabnisko_ime}", ip=ip)
         return RedirectResponse(url="/clani", status_code=302)
 
-    _record_failed_login(ip)
+    _record_failed_login(ip, db)
     logger.warning(f"Neuspešna prijava: {uporabnisko_ime} ({ip})")
     log_akcija(db, uporabnisko_ime, "login_fail", f"Neuspešna prijava: {uporabnisko_ime}", ip=ip)
     return templates.TemplateResponse(
@@ -345,7 +409,7 @@ async def login_2fa(
 
     ip = request.client.host if request.client else "unknown"
 
-    if not _check_rate_limit(ip):
+    if not _check_rate_limit(ip, db):
         return templates.TemplateResponse(
             "login-2fa.html",
             {"request": request, "napaka": "Preveč neuspešnih poskusov. Počakajte 15 minut."},
@@ -388,7 +452,7 @@ async def login_2fa(
             log_akcija(db, uporabnisko_ime, "login_2fa_zaupljiva_nova", "Nova zaupljiva naprava shranjena", ip=ip)
         return response
 
-    _record_failed_login(ip)
+    _record_failed_login(ip, db)
     logger.warning(f"Napačna 2FA koda: {uporabnisko_ime} ({ip})")
     log_akcija(db, uporabnisko_ime, "login_2fa_napaka", f"Napačna 2FA koda: {uporabnisko_ime}", ip=ip)
     return templates.TemplateResponse(

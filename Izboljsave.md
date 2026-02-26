@@ -47,6 +47,14 @@
 | Alembic migracije | ✅ | v1.12 | Zamenjava ročnih ALTER TABLE; alembic/versions/001 (vse tabele) + 002 (zaupljive_naprave); auto-stamp obstoječih baz kot 001 |
 | Logging v datoteko | ✅ | v1.12 | RotatingFileHandler → data/app.log; 5 MB × 5 datotek; konfiguriran v _nastavi_logging() ob zagonu |
 | ProxyHeadersMiddleware | ✅ | v1.12 | Uvicorn ProxyHeadersMiddleware (trusted_hosts="*"); bere X-Forwarded-For/X-Real-IP od reverse proxy-a; pravilni IP v audit logu |
+| Uvoz ES-številke in opomb iz Excel | ✅ | v1.13 | Dve novi polji (es_stevilka, opombe) dodani v UVOZ_STOLPCI_PRIVZETO; es_stevilka se parsira kot int |
+| Privzeti operaterski razredi razširjeni | ✅ | v1.13 | OPERATERSKI_RAZREDI_PRIVZETO: A, N, A - CW, N - CW |
+| Persistentni rate limiting | ✅ | v1.13 | Nova tabela login_poskusi (ip, cas); auto-cleanup starih vnosov; Alembic migracija 003; zamenjal in-memory defaultdict |
+| Omejitev velikosti POST zahtevkov (1 MB) | ✅ | v1.13 | ContentSizeLimitMiddleware; izvozne poti (/izvoz/*) izvzete – imajo lastno 10 MB omejitev |
+| Iztok seje ob neaktivnosti (30 min) | ✅ | v1.13 | InactivityTimeoutMiddleware; _last_active timestamp v seji; redirect /login?timeout=1 z opozorilom |
+| Validacija vloge pri urejanju uporabnikov | ✅ | v1.13 | Preprečuje neustrezne vloge; fallback na "bralec" v obeh POST handlerjih |
+| Začasno geslo ustreza politiki | ✅ | v1.13 | 16 znakov; garantirano upper+lower+digit+special (!@#$%*-_+?); Fisher-Yates mešanje |
+| Značka različice aplikacije v footerju | ✅ | v1.13 | vX.XX + datum izdaje + besedilo LICENSE; Bootstrap modal; vrednosti prek KlubContextMiddleware |
 
 ---
 
@@ -128,4 +136,4 @@
 
 ---
 
-*Zadnja posodobitev: 2026-02-26 (v1.12)*
+*Zadnja posodobitev: 2026-02-26 (v1.13)*

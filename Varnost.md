@@ -38,6 +38,11 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Audit log za 2FA in zaupljive naprave | ✅ | v1.12 |
 | XSS – Jinja2 auto-escape (`\| safe` samo za interni SVG QR) | ✅ | v1.0 |
 | SQL injection – SQLAlchemy ORM, parameterized queries | ✅ | v1.0 |
+| Persistentni rate limiting (SQLite `login_poskusi`) | ✅ | v1.13 |
+| Omejitev velikosti POST zahtevkov (1 MB, `ContentSizeLimitMiddleware`) | ✅ | v1.13 |
+| Iztok seje ob neaktivnosti (30 min, `InactivityTimeoutMiddleware`) | ✅ | v1.13 |
+| Validacija `vloga` na dovoljene vrednosti pri urejanju uporabnikov | ✅ | v1.13 |
+| Začasno geslo ustreza politiki (16 znakov, mešano + posebni) | ✅ | v1.13 |
 
 ---
 
@@ -75,11 +80,10 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 #### V2. ~~Šibka politika gesel~~ ✅ IMPLEMENTIRANO (v1.3)
 - `preveri_zahteve_gesla()` v `app/auth.py`: min. 14 znakov, mali/veliki znaki, številka, posebni znak.
 
-#### V3. Rate limiting ni trajen
-- **Datoteka:** `app/main.py` – `_login_attempts` dict (vrstice 38–71)
-- **Tveganje:** Ob ponovnem zagonu strežnika se števec resetira. Napadalec, ki pozna urnik restartov,
-  dobi periodično "svežo" okno za brute-force.
-- **Ukrep:** Shraniti neuspele poskuse v SQLite tabelo `login_attempts` (cas, ip) namesto v-memory dict.
+#### V3. ~~Rate limiting ni trajen~~ ✅ IMPLEMENTIRANO (v1.13)
+- Nova tabela `login_poskusi` (ip, cas) v SQLite; `_check_rate_limit` in `_record_failed_login` uporabljata DB.
+- Stari vnosi se samodejno čistijo ob vsakem klicu `_check_rate_limit`.
+- Alembic migracija `003_login_poskusi.py`.
 
 ---
 
@@ -93,28 +97,17 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 - **Tveganje:** Pri >10 sočasnih pisanjih možni `database is locked` napake.
 - **Ukrep:** Za produkcijsko rabo (>50 sočasnih uporabnikov) migracija na PostgreSQL.
 
-#### S3. Ni omejitve velikosti za navadne POST zahteve
-- **Datoteka:** `app/main.py` – manjka `ContentSizeLimitMiddleware`
-- **Tveganje:** Napadalec z veljavno sejo pošlje izjemno velik POST body (npr. v polju `opombe`),
-  kar obremeni spomin procesorja/RAM.
-- **Ukrep:**
-  ```python
-  from starlette.middleware.trustedhost import TrustedHostMiddleware
-  # ali omejitev prek Nginx: client_max_body_size 1m;
-  ```
+#### S3. ~~Ni omejitve velikosti za navadne POST zahteve~~ ✅ IMPLEMENTIRANO (v1.13)
+- `ContentSizeLimitMiddleware` v `app/main.py` – zavrne POST/PUT/PATCH z body > 1 MB (HTTP 413).
+- Izvoz rute (`/izvoz/*`) so izvzete – imajo lastno omejitev 10 MB za datoteke.
 
-#### S4. Ni izteka seje ob neaktivnosti
-- **Tveganje:** Seja ostane veljavna 1 uro od prijave ne glede na aktivnost. Zapuščena seja
-  na skupnem računalniku ostane dostopna do 60 minut.
-- **Ukrep:** Middleware ki beleži čas zadnje aktivnosti in preusmeri na `/logout` po 30 minutah
-  brez zahtev.
+#### S4. ~~Ni izteka seje ob neaktivnosti~~ ✅ IMPLEMENTIRANO (v1.13)
+- `InactivityTimeoutMiddleware` v `app/main.py` – odjavi po 30 min neaktivnosti.
+- `_last_active` timestamp v seji; ob izteku → `session.clear()` + redirect na `/login?timeout=1`.
+- Prijavna stran prikaže obvestilo "Seja je potekla zaradi neaktivnosti."
 
-#### S5. `vloga` ni validirana na dovoljene vrednosti
-- **Datoteka:** `app/routers/uporabniki.py` vrstice 73, 177
-- **Tveganje:** Admin lahko nastavi arbitrary niz za `vloga` (npr. `"superadmin"`). Funkciji
-  `is_admin()` in `is_editor()` sta robustni (preverjata točni niz), zato bi taka vloga dobila
-  le bralčeve pravice – funkcionalnih posledic ni. Operativna zmeda je možna.
-- **Ukrep:** Dodati validacijo: `if vloga not in VLOGE: vloga = "bralec"` v oba POST handlerja.
+#### S5. ~~`vloga` ni validirana na dovoljene vrednosti~~ ✅ IMPLEMENTIRANO (v1.13)
+- `app/routers/uporabniki.py`: `if vloga not in VLOGE: vloga = "bralec"` v obeh POST handlerjih.
 
 #### S6. Skupiny brisanje dovoli urednik, ne samo admin
 - **Datoteka:** `app/routers/skupine.py` vrstica 143
@@ -147,13 +140,9 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
   - Synology: Custom Header v Reverse Proxy nastavitvah
   - Nginx: `add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;`
 
-#### N4. Začasno geslo ne ustreza politiki
-- **Datoteka:** `app/routers/uporabniki.py` – `_generiraj_geslo(12)` (vrstice 15–20)
-- **Opomba:** Generirano začasno geslo je 12 znakov in vsebuje samo alfanumerične znake, kar ne
-  ustreza politiki (14 znakov, special char). Geslo je namenjeno takojšnji zamenjavi in ni
-  problematično, a povzroča operativno zmedo ker admin ne more "preveriti" moči začasnega gesla.
-- **Ukrep:** Podaljšati na 16 znakov in dodati posebne znake; ali dokumentirati da ta gesla so
-  zunaj domene politike.
+#### N4. ~~Začasno geslo ne ustreza politiki~~ ✅ IMPLEMENTIRANO (v1.13)
+- `_generiraj_geslo(16)` v `app/routers/uporabniki.py`: 16 znakov, mali+veliki+številke+posebni (`!@#$%*-_+?`).
+- Garantirano vsaj po en znak iz vsake kategorije (Fisher-Yates mešanje).
 
 #### N5. Dependencies brez hash validacije
 - **Tveganje:** `requirements.txt` fiksira verzije, a brez `--hash` → napad na supply chain
@@ -196,6 +185,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.3 | CSRF zaščita, politika gesel, profil/sprememba gesla |
 | v1.7 | Audit log, validacija e-pošte, normalizacija vhodnih podatkov, allowlist tipov |
 | v1.12 | Opcijska TOTP 2FA (pyotp, RFC 6238); skrivnost shranjena šele po verifikaciji; rate limiting reuse; zaupljive naprave (SHA-256 token, 30 dni); ProxyHeadersMiddleware (pravilni IP v audit logu) |
+| v1.13 | Persistentni rate limiting (SQLite); ContentSizeLimitMiddleware (1 MB); InactivityTimeoutMiddleware (30 min); validacija `vloga`; začasno geslo ustreza politiki (16 znakov + posebni) |
 
 ---
 

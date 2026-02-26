@@ -820,16 +820,24 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.12.0` | `1.12.0`, `1.12`, `1`, `latest` |
+| Git tag `v1.13.0` | `1.13.0`, `1.13`, `1`, `latest` |
 
-> **Opomba:** `v1.12` (brez patch) ni veljaven semver in workflow bo zatajil.
-> Vedno uporabite obliko `v1.12.0`.
+> **Opomba:** `v1.13` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.13.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.12.0
-git push origin v1.12.0
+git tag v1.13.0
+git push origin v1.13.0
 ```
+
+### Docker tag v `docker-compose.yml`
+
+`docker-compose.yml` uporablja tag **`:latest`**. To je namerno:
+
+- **Synology Container Manager** zazna posodobitve samo za isti tag (primerja SHA digest, ne ime taga). Z versioned tagi (`1.12` → `1.13`) se "Update available" ne prikaže.
+- **Git tagi** (`v1.12.0`) služijo za sledenje verzij v repozitoriju in sproži build v CI/CD – CI/CD ob vsakem tagu posodobi digest za `latest`.
+- **SSH posodobitev** (`docker compose pull && up -d`) deluje za oba pristopa.
 
 ### Prednosti za končne uporabnike
 
@@ -983,6 +991,11 @@ zaupljive_naprave                   ← v1.12 (2FA "zapomni napravo")
 ├── created_at (DateTime)
 ├── expires_at (DateTime)           ← ustvari + 30 dni
 └── user_agent (String, nullable)
+
+login_poskusi                       ← v1.13 (persistentni rate limiting)
+├── id (PK)
+├── ip (String, indexed)
+└── cas (DateTime, timezone=True, indexed)
 ```
 
 ### Migracije (Alembic)
@@ -1002,12 +1015,13 @@ alembic_command.upgrade(cfg, "head")
 |----------|---------|
 | `001` | Vse tabele do v1.11 (clani, clanarine, aktivnosti, skupine, clan_skupina, uporabniki, nastavitve, audit_log) |
 | `002` | Nova tabela `zaupljive_naprave` (2FA "zapomni napravo") |
+| `003` | Nova tabela `login_poskusi` (persistentni rate limiting prijave) |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicira samo `002`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo samo `002` in `003`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 
-`KlubContextMiddleware` (v `main.py`) se izvede pri vsaki zahtevi in prebere `klub_oznaka` ter `klub_ime` iz tabele `nastavitve`. Vrednosti se shranijo v `request.state` in so dostopne v vseh Jinja2 predlogah prek `request.state.klub_oznaka` oz. `request.state.klub_ime`. Navigacijska vrstica in naslov strani (`<title>`) sta tako dinamična in odražata nastavitve kluba brez ponovnega zagona aplikacije.
+`KlubContextMiddleware` (v `main.py`) se izvede pri vsaki zahtevi in prebere `klub_oznaka` ter `klub_ime` iz tabele `nastavitve`. Poleg tega middleware nastavi statične podatke aplikacije: `request.state.app_version`, `request.state.app_release_date` in `request.state.app_license` (vsebina datoteke `LICENSE`, prebrana ob zagonu). Vse vrednosti so dostopne v vseh Jinja2 predlogah. Navigacijska vrstica in naslov strani (`<title>`) sta dinamična; verzijska značka v nogi prikazuje številko različice in odpre Bootstrap modal z datumom in licenco.
 
 ### Login tok z 2FA
 
@@ -1076,6 +1090,11 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | Predogled uvoza (2-koračni tok) | v1.8 |
 | CSRF + Session temp datoteke za uvoz | v1.8 |
 | TOTP dvostopenjska avtentikacija (opcijska) | v1.12 |
+| Persistentni rate limiting (SQLite `login_poskusi`) | v1.13 |
+| Omejitev velikosti POST zahtevkov (1 MB, `ContentSizeLimitMiddleware`) | v1.13 |
+| Iztok seje ob neaktivnosti (30 min, `InactivityTimeoutMiddleware`) | v1.13 |
+| Validacija vloge na dovoljene vrednosti pri urejanju uporabnikov | v1.13 |
+| Začasno geslo ustreza politiki (16 znakov + posebni znaki) | v1.13 |
 
 ### Varnostno vzdrževanje
 
@@ -1119,4 +1138,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.12 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.13 + CI/CD*

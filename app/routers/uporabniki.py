@@ -12,12 +12,26 @@ from ..auth import require_login, is_admin, hash_geslo, preveri_zahteve_gesla
 from ..csrf import get_csrf_token, csrf_protect
 
 
-def _generiraj_geslo(dolzina: int = 12) -> str:
-    """Generira varno naključno geslo (črke + številke, brez zmedenih znakov)."""
-    znaki = string.ascii_letters + string.digits
-    # Odstrani znake ki so vizualno podobni (0/O, 1/l/I)
-    znaki = znaki.translate(str.maketrans("", "", "0O1lI"))
-    return "".join(secrets.choice(znaki) for _ in range(dolzina))
+def _generiraj_geslo(dolzina: int = 16) -> str:
+    """Generira varno naključno geslo ki ustreza politiki (16 znakov, mešano + posebni)."""
+    mali    = string.ascii_lowercase.translate(str.maketrans("", "", "loi"))
+    veliki  = string.ascii_uppercase.translate(str.maketrans("", "", "OI"))
+    stevilke = string.digits.translate(str.maketrans("", "", "01"))
+    posebni  = "!@#$%*-_+?"
+    vsi = mali + veliki + stevilke + posebni
+    # Zagotovi po en znak iz vsake kategorije (politika gesla)
+    geslo: list[str] = [
+        secrets.choice(mali),
+        secrets.choice(veliki),
+        secrets.choice(stevilke),
+        secrets.choice(posebni),
+    ]
+    geslo += [secrets.choice(vsi) for _ in range(dolzina - 4)]
+    # Premešaj da zagotovljeni znaki niso vedno na enakih mestih
+    for i in range(len(geslo) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        geslo[i], geslo[j] = geslo[j], geslo[i]
+    return "".join(geslo)
 
 
 router = APIRouter(prefix="/uporabniki")
@@ -106,6 +120,9 @@ async def nov_shrani(
                 "napaka": f"Uporabnik '{uporabnisko_ime}' že obstaja.",
             },
         )
+
+    if vloga not in VLOGE:
+        vloga = "bralec"
 
     u = Uporabnik(
         uporabnisko_ime=uporabnisko_ime.strip(),
@@ -206,7 +223,7 @@ async def uredi_shrani(
         u.geslo_hash = hash_geslo(novo_geslo)
 
     u.ime_priimek = ime_priimek.strip() or None
-    u.vloga = vloga
+    u.vloga = vloga if vloga in VLOGE else "bralec"
     u.aktiven = aktiven == "da"
     db.commit()
     return RedirectResponse(url="/uporabniki", status_code=302)
