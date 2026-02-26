@@ -12,6 +12,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from sqlalchemy import text, inspect as sa_inspect
 from .database import engine, SessionLocal, get_db
@@ -188,10 +189,15 @@ app.add_middleware(
     secret_key=os.getenv("SECRET_KEY", "radikoklub-dev-key-ZAMENJAJTE-v-produkciji"),
     max_age=3600,          # 1 ura (prej 24 ur)
     same_site="strict",    # Zaščita pred CSRF
-    https_only=False,      # Postavite na True ko imate HTTPS
+    https_only=False,      # Ostane False tudi pri HTTPS (HSTS na reverse proxy-u zadostuje)
 )
 
 app.add_middleware(KlubContextMiddleware)
+
+# Prebere X-Forwarded-For / X-Real-IP od reverse proxy-a (Synology, Nginx).
+# trusted_hosts="*" je varno ker je port 8000 vezan samo na 127.0.0.1 – direkten
+# dostop iz interneta ni možen; header lahko nastavi samo zaupljiv proxy.
+app.add_middleware(ProxyHeadersMiddleware, trusted_hosts="*")
 
 app.mount("/static", StaticFiles(directory="app/static"), name="static")
 templates = Jinja2Templates(directory="app/templates")
