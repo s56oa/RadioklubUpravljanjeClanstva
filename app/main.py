@@ -466,19 +466,13 @@ async def logout(request: Request) -> RedirectResponse:
     uporabnik_info = request.session.get("uporabnik")
     username = uporabnik_info.get("uporabnisko_ime") if uporabnik_info else None
     ip = request.client.host if request.client else None
-    device_token = request.cookies.get("_2fa_device")
     request.session.clear()
     db = SessionLocal()
     try:
-        if device_token:
-            token_hash = _device_token_hash(device_token)
-            db.query(ZaupljivaNaprava).filter(
-                ZaupljivaNaprava.token_hash == token_hash
-            ).delete()
-            db.commit()
         log_akcija(db, username, "logout", ip=ip)
     finally:
         db.close()
-    response = RedirectResponse(url="/login", status_code=302)
-    response.delete_cookie("_2fa_device")
-    return response
+    # Zaupljiva naprava (_2fa_device piškotek) se ob odjavi NE briše –
+    # velja 30 dni ne glede na odjave. Uporabnik jo prekliče prek
+    # Moj profil → Odjavi vse naprave ali ob onemogočanju 2FA.
+    return RedirectResponse(url="/login", status_code=302)
