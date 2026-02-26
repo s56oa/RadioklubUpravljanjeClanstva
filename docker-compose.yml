@@ -1,8 +1,9 @@
 services:
   clanstvo:
-    image: ghcr.io/s56oa/radioklubupravljanjeclanstva:latest
+    image: ghcr.io/s56oa/radioklubupravljanjeclanstva:1.12
     # Za lokalni build (razvoj): zamenjaj zgornjo vrstico z:
     # build: .
+    # Za posodobitev: zamenjaj tag (npr. 1.12 → 1.13) in poženi docker compose pull && up -d
     container_name: radioklub-clanstvo
     ports:
       - "127.0.0.1:8000:8000"  # Samo lokalno – za zunanji dostop dodajte Nginx reverse proxy
