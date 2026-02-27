@@ -1,13 +1,13 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-02-26 (v1.12)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-02-27 (v1.14)*
 
 ---
 
 ## Povzetek
 
 Aplikacija je primarna za uporabo v zaupljivem lokalnem okolju (radioklub, domače omrežje, VPN).
-Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
+Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
 
 ---
 
@@ -186,6 +186,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.7 | Audit log, validacija e-pošte, normalizacija vhodnih podatkov, allowlist tipov |
 | v1.12 | Opcijska TOTP 2FA (pyotp, RFC 6238); skrivnost shranjena šele po verifikaciji; rate limiting reuse; zaupljive naprave (SHA-256 token, 30 dni); ProxyHeadersMiddleware (pravilni IP v audit logu) |
 | v1.13 | Persistentni rate limiting (SQLite); ContentSizeLimitMiddleware (1 MB); InactivityTimeoutMiddleware (30 min); validacija `vloga`; začasno geslo ustreza politiki (16 znakov + posebni) |
+| v1.14 | Brez novih varnostnih tveganj; nov /aktivnosti, /clanarine, /dashboard – samo GET, require_login, ORM queries, Jinja2 autoescaping, tojson za Chart.js podatke |
 
 ---
 
@@ -195,9 +196,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 2. **Lokalna ali VPN uporaba:** Ni potrebnih dodatnih ukrepov – promet ne zapusti zaupljivega omrežja
 3. **Pred javnim dostopom:** HTTPS + HSTS na reverse proxy-u (Synology ali Nginx) – brez sprememb kode (V1)
 4. **Priporočeno za vse uporabniške račune:** Aktivirati 2FA prek Moj profil → Aktiviraj 2FA (posebej za admin)
-5. **V kratkem:** Validacija `vloga` polja pri urejanju uporabnikov (S5)
-6. **Priporočeno:** Trajen rate limiting v SQLite (V3); inaktivni session timeout (S4)
-7. **Operativno:** Redni `pip-audit`; periodično čiščenje audit loga (N2, N5)
+5. **Operativno:** Redni `pip-audit`; periodično čiščenje audit loga (N2, N5)
 
 ---
 

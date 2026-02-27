@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.12 | Datum: 2026-02-26*
+*Različica 1.14 | Datum: 2026-02-27*
 
 ---
 
@@ -63,7 +63,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 | Migracije | Alembic | 1.13+ |
 | Logging | RotatingFileHandler → data/app.log (5 MB × 5) | — |
 | Kontekst kluba | KlubContextMiddleware → request.state | — |
-| Frontend | Bootstrap 5.3 + DataTables + Bootstrap Icons | CDN |
+| Frontend | Bootstrap 5.3 + DataTables + Bootstrap Icons + Chart.js | CDN |
 | Excel | openpyxl | 3.1 |
 
 ### Struktura map
@@ -78,8 +78,8 @@ UpravljanjeClanstva/
 │   ├── config.py         – branje nastavitev iz baze
 │   ├── csrf.py           – CSRF token zaščita
 │   ├── audit_log.py      – log_akcija() helper
-│   ├── routers/          – FastAPI routerji po področjih
-│   ├── templates/        – Jinja2 HTML predloge
+│   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, …)
+│   ├── templates/        – Jinja2 HTML predloge (clani/, clanarine/, aktivnosti/, dashboard/, …)
 │   └── static/           – CSS, ikone
 ├── alembic/              – Alembic migracije
 │   ├── env.py
@@ -820,15 +820,15 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.13.0` | `1.13.0`, `1.13`, `1`, `latest` |
+| Git tag `v1.14.0` | `1.14.0`, `1.14`, `1`, `latest` |
 
-> **Opomba:** `v1.13` (brez patch) ni veljaven semver in workflow bo zatajil.
+> **Opomba:** `v1.14` (brez patch) ni veljaven semver in workflow bo zatajil.
 > Vedno uporabite obliko `v1.13.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.13.0
-git push origin v1.13.0
+git tag v1.14.0
+git push origin v1.14.0
 ```
 
 ### Docker tag v `docker-compose.yml`
@@ -914,7 +914,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (34) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (46) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1124,8 +1124,8 @@ pytest tests/ -v
 | `test_normalizacija.py` | _normaliziraj_clan (title case, KZ, email) | 6 |
 | `test_config.py` | get_nastavitev, get_seznam, get_tipi_clanstva | 4 |
 | `test_audit.py` | log_akcija, napaka ne propagira | 3 |
-| `test_routes.py` | GET/POST /login, /health, /clani redirect | 5 |
-| **Skupaj** | | **34** |
+| `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter | 17 |
+| **Skupaj** | | **46** |
 
 ### Testna infrastruktura
 
@@ -1138,4 +1138,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.13 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.14 + CI/CD*

@@ -55,6 +55,10 @@
 | Validacija vloge pri urejanju uporabnikov | ✅ | v1.13 | Preprečuje neustrezne vloge; fallback na "bralec" v obeh POST handlerjih |
 | Začasno geslo ustreza politiki | ✅ | v1.13 | 16 znakov; garantirano upper+lower+digit+special (!@#$%*-_+?); Fisher-Yates mešanje |
 | Značka različice aplikacije v footerju | ✅ | v1.13 | vX.XX + datum izdaje + besedilo LICENSE; Bootstrap modal; vrednosti prek KlubContextMiddleware |
+| Pregled vseh aktivnosti | ✅ | v1.14 | GET /aktivnosti; filtri Vse/Trenutno leto/Zadnji 2 leti/Zadnjih 10 let; seštevek delovnih ur; DataTables |
+| Pregled vseh plačil | ✅ | v1.14 | GET /clanarine; isti filtri; kartice s seštevki po letu (count + skupaj €); DataTables |
+| Neplačniki po izbranem letu | ✅ | v1.14 | Filter `leto_placila` na /clani; year selector z auto-submit; privzeto tekoče leto |
+| Statistični dashboard | ✅ | v1.14 | GET /dashboard; 6 stat kartic; Chart.js: plačila po letu (bar), tipi članstva (doughnut), delovne ure po letu (bar) |
 
 ---
 
@@ -108,11 +112,8 @@
 #### ~~11. Profilna stran~~ ✅ Implementirano v v1.3
 *(Profilna stran za app. uporabnike – ime in geslo. Profilna stran za člane kluba je še odprt backlog.)*
 
-#### 12. Statistični dashboard
-- **Problem:** Ni grafičnega prikaza stanja članstva.
-- **Predlog:** Domača stran z grafi: trend članstva po letih, plačila po mesecih, razporeditev tipov.
-- **Tehnologija:** Chart.js (CDN, brez build koraka).
-- **Obseg:** ~4 ure
+#### ~~12. Statistični dashboard~~ ✅ Implementirano v v1.14
+*(GET /dashboard; 6 stat kartic; Chart.js: plačila po letu, tipi članstva, delovne ure po letu)*
 
 ---
 
@@ -136,4 +137,4 @@
 
 ---
 
-*Zadnja posodobitev: 2026-02-26 (v1.13)*
+*Zadnja posodobitev: 2026-02-27 (v1.14)*

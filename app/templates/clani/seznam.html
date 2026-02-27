@@ -37,7 +37,15 @@
         </select>
       </div>
       <div class="col-md-2">
-        <label class="form-label small mb-1">Članarina {{ leto }}</label>
+        <label class="form-label small mb-1">Leto čl.</label>
+        <select name="leto_placila" class="form-select form-select-sm" onchange="this.form.submit()">
+          {% for y in range(leto_zdaj, 2016, -1) %}
+          <option value="{{ y }}" {% if leto == y %}selected{% endif %}>{{ y }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label class="form-label small mb-1">Stanje čl.</label>
         <select name="placal" class="form-select form-select-sm">
           <option value="" {% if placal == '' %}selected{% endif %}>Vsi</option>
           <option value="da" {% if placal == 'da' %}selected{% endif %}>Plačano</option>

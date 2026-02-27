@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block title %}Evidenca plačil – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-cash-stack me-2 text-primary"></i>Evidenca plačil</h4>
+</div>
+
+<!-- Filter -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <span class="text-muted small me-1">Prikaži:</span>
+      <a href="/clanarine?filter=leto" class="btn btn-sm {% if filter == 'leto' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar me-1"></i>Trenutno leto
+      </a>
+      <a href="/clanarine?filter=2leti" class="btn btn-sm {% if filter == '2leti' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar2 me-1"></i>Zadnji 2 leti
+      </a>
+      <a href="/clanarine?filter=10let" class="btn btn-sm {% if filter == '10let' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar3 me-1"></i>Zadnjih 10 let
+      </a>
+      <a href="/clanarine?filter=vse" class="btn btn-sm {% if filter == 'vse' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar4 me-1"></i>Vse
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Seštevki po letu -->
+{% if sestevki_sorted %}
+<div class="row g-2 mb-3">
+  {% for leto, s in sestevki_sorted %}
+  <div class="col-6 col-md-3 col-lg-2">
+    <div class="card text-center h-100 border-success">
+      <div class="card-body py-2 px-2">
+        <div class="fw-bold text-success fs-5">{{ leto }}</div>
+        <div class="small">{{ s.stevilo_placanih }} plačil</div>
+        {% if s.skupaj > 0 %}
+        <div class="small text-muted">{{ '%.2f'|format(s.skupaj) }} €</div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
+
+<!-- Tabela -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table id="tabela-clanarin" class="table table-hover table-striped mb-0 align-middle">
+        <thead class="table-primary">
+          <tr>
+            <th>Leto</th>
+            <th>Datum plačila</th>
+            <th>Član</th>
+            <th class="text-end">Znesek</th>
+            <th>Opombe</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in clanarine %}
+          <tr>
+            <td>{{ c.leto }}</td>
+            <td>
+              {% if c.datum_placila %}
+              <span class="text-success">{{ c.datum_placila.strftime('%d.%m.%Y') }}</span>
+              {% else %}
+              <span class="text-danger">Neplačano</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if c.clan %}
+              <a href="/clani/{{ c.clan_id }}" class="text-decoration-none">
+                {{ c.clan.priimek }} {{ c.clan.ime }}
+              </a>
+              {% else %}–{% endif %}
+            </td>
+            <td class="text-end">{{ c.znesek or '–' }}</td>
+            <td>{{ c.opombe or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card-footer text-muted small">
+    Skupaj: <strong>{{ clanarine|length }}</strong> vnosov
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+  $('#tabela-clanarin').DataTable({
+    responsive: true,
+    language: {
+      url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/sl.json',
+      emptyTable: 'Ni plačil za izbrano obdobje'
+    },
+    pageLength: 25,
+    order: [[0, 'desc'], [1, 'desc']],
+    columnDefs: [
+      { responsivePriority: 1, targets: 2 },
+      { responsivePriority: 2, targets: 0 },
+      { responsivePriority: 3, targets: 1 },
+      { responsivePriority: 4, targets: 3 },
+      { responsivePriority: 5, targets: 4 },
+    ],
+  });
+});
+</script>
+{% endblock %}

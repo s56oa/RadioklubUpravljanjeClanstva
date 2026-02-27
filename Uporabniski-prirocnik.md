@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.13 | Datum: 2026-02-26*
+*Različica 1.14 | Datum: 2026-02-27*
 
 ---
 
@@ -21,6 +21,7 @@
 13. [Upravljanje uporabnikov](#13-upravljanje-uporabnikov)
 14. [Dnevnik sprememb (Audit log)](#14-dnevnik-sprememb-audit-log)
 15. [Moj profil, geslo in 2FA](#15-moj-profil-geslo-in-2fa)
+16. [Statistični dashboard](#16-statistični-dashboard)
 
 ---
 
@@ -103,6 +104,8 @@ Po prijavi se odpre seznam vseh članov kluba.
   - *Veljavna RD* – dovoljenje je veljavno
   - *Brez RD* – ni datuma veljavnosti
 - **Filter tipa** (spustni seznam): omeji prikaz na izbrani tip članstva.
+- **Leto čl.** (spustni seznam): izberite leto za prikaz stanja plačila članarine. Privzeto je tekoče leto. Ob spremembi leta se seznam samodejno osveži.
+- **Stanje čl.**: filtrirajte po plačanem/neplačanem statusu za izbrano leto.
 
 ### Stolpci tabele
 
@@ -113,7 +116,7 @@ Po prijavi se odpre seznam vseh članov kluba.
 | Tip | Tip članstva (Osebni, Družinski, itd.) |
 | Razred | Operaterski razred (A, N) |
 | Veljavnost RD | Datum poteka radioamaterskega dovoljenja z barvno oznako |
-| Članarina | Status plačila za tekoče leto |
+| Članarina | Status plačila za izbrano leto |
 | Akcije | Gumbi za urejanje in brisanje (samo admin) |
 
 ### Barvne oznake veljavnosti RD
@@ -191,6 +194,18 @@ Na strani **Izvoz/Uvoz** je razdelek *Seštevki plačil po letu*, kjer je za vsa
 - skupni zbrani znesek (€),
 - število vnosov brez znesca.
 
+### Pregled vseh plačil (/clanarine)
+
+V navigacijski vrstici kliknite **Plačila** za zbrani pregled vseh plačil vseh članov.
+
+Filtri (gumbi v vrstici):
+- **Trenutno leto** – privzeto, prikaže samo tekoče leto
+- **Zadnji 2 leti** – tekoče in preteklo leto
+- **Zadnjih 10 let** – zadnje desetletje
+- **Vse** – vsi vnosi brez časovnega omejevanja
+
+Nad tabelo se prikažejo **kartice s seštevki po letu**: število plačil in skupni znesek v € za vsako prikazano leto.
+
 ---
 
 ## 8. Evidenca aktivnosti
@@ -207,6 +222,18 @@ Za vsako leto je dovoljeno **neomejeno število vnosov**.
 ### Brisanje aktivnosti
 
 Kliknite gumb **Odstrani** ob vnosu. Brisanje je takojšnje brez ponovnega potrjevanja.
+
+### Pregled vseh aktivnosti (/aktivnosti)
+
+V navigacijski vrstici kliknite **Aktivnosti** za zbrani pregled aktivnosti vseh članov.
+
+Filtri (gumbi v vrstici):
+- **Trenutno leto** – privzeto, prikaže samo tekoče leto
+- **Zadnji 2 leti** – tekoče in preteklo leto
+- **Zadnjih 10 let** – zadnje desetletje
+- **Vse** – vsi vnosi brez časovnega omejevanja
+
+V nogi tabele je prikazan **seštevek delovnih ur** za prikazano obdobje.
 
 ---
 
@@ -468,4 +495,37 @@ Z gumbom **Odjavi vse naprave** prekličete vse shranjene žetone naenkrat. Ob n
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.13 (2026-02-26)*
+---
+
+## 16. Statistični dashboard
+
+Dostopno vsem prijavljenim: navigacija → **Dashboard**.
+
+Prikazuje statistični pregled stanja kluba za hitro obvladovanje situacije.
+
+### Stat kartice
+
+Šest kartic v zgornjem delu prikazuje ključne številke za **tekoče leto**:
+
+| Kartica | Opis |
+|---------|------|
+| Aktivni člani | Število aktivnih članov |
+| Vsi člani | Skupno število vseh članov (aktivnih + neaktivnih) |
+| Plačalo *leto* | Število aktivnih članov ki so plačali članarino |
+| Neplačalo *leto* | Aktivni člani ki še niso plačali |
+| Aktivnosti *leto* | Število evidentiranih aktivnosti v tekočem letu |
+| Del. ure *leto* | Skupne delovne ure v tekočem letu |
+
+### Grafi
+
+Trije interaktivni grafi prikazujejo podatke za **zadnjih 10 let**:
+
+1. **Plačila članarine po letu** – stolpčni grafikon s številom plačil za vsako leto
+2. **Tipi članstva** – tortni grafikon z razporeditvijo aktivnih članov po tipu
+3. **Delovne ure po letu** – stolpčni grafikon s skupnimi delovnimi urami
+
+> Grafi se naložijo iz CDN (Chart.js) – za prikaz je potrebna internetna povezava.
+
+---
+
+*Radio klub Člani – Upravljanje Članstva – različica 1.14 (2026-02-27)*

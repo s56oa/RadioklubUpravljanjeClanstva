@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Dashboard – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="mb-3">
+  <h4 class="mb-0"><i class="bi bi-bar-chart-fill me-2 text-primary"></i>Statistični dashboard</h4>
+  <small class="text-muted">{{ request.state.klub_ime or 'Radio klub' }} – pregled stanja</small>
+</div>
+
+<!-- Stat cards -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-primary">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-primary">{{ clani_aktivni }}</div>
+        <div class="small text-muted">Aktivni člani</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-secondary">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-secondary">{{ clani_skupaj }}</div>
+        <div class="small text-muted">Vsi člani</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-success">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-success">{{ placali_letos }}</div>
+        <div class="small text-muted">Plačalo {{ leto_zdaj }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-danger">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-danger">{{ neplacali_letos }}</div>
+        <div class="small text-muted">Neplačalo {{ leto_zdaj }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-info">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-info">{{ aktivnosti_letos }}</div>
+        <div class="small text-muted">Aktivnosti {{ leto_zdaj }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="col-6 col-md-4 col-lg-2">
+    <div class="card text-center h-100 border-warning">
+      <div class="card-body py-3">
+        <div class="fs-2 fw-bold text-warning">{{ ure_letos }}</div>
+        <div class="small text-muted">Del. ure {{ leto_zdaj }}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Charts -->
+<div class="row g-3">
+  <div class="col-lg-8">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-bar-chart me-1"></i>Plačila članarine po letu
+      </div>
+      <div class="card-body">
+        <canvas id="chartPlacila"></canvas>
+      </div>
+    </div>
+  </div>
+  <div class="col-lg-4">
+    <div class="card h-100">
+      <div class="card-header">
+        <i class="bi bi-pie-chart me-1"></i>Tipi članstva
+      </div>
+      <div class="card-body d-flex align-items-center justify-content-center">
+        {% if tipi_labele %}
+        <canvas id="chartTipi"></canvas>
+        {% else %}
+        <span class="text-muted">Ni podatkov</span>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header">
+        <i class="bi bi-clock me-1"></i>Delovne ure po letu
+      </div>
+      <div class="card-body">
+        <canvas id="chartUre"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+const leta = {{ leta | tojson }};
+const placilaData = {{ placila_po_letu | tojson }};
+const tipiLabele = {{ tipi_labele | tojson }};
+const tipiVrednosti = {{ tipi_vrednosti | tojson }};
+const ureData = {{ ure_po_letu | tojson }};
+
+// Chart 1: Plačila po letu
+new Chart(document.getElementById('chartPlacila'), {
+  type: 'bar',
+  data: {
+    labels: leta,
+    datasets: [{
+      label: 'Plačali članarino',
+      data: placilaData,
+      backgroundColor: 'rgba(13, 110, 253, 0.7)',
+      borderColor: 'rgba(13, 110, 253, 1)',
+      borderWidth: 1,
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+    plugins: { legend: { display: false } }
+  }
+});
+
+// Chart 2: Tipi članstva
+if (tipiLabele.length > 0) {
+  const tipiBarve = [
+    '#0d6efd', '#6610f2', '#6f42c1', '#d63384', '#dc3545',
+    '#fd7e14', '#ffc107', '#198754', '#20c997', '#0dcaf0'
+  ];
+  new Chart(document.getElementById('chartTipi'), {
+    type: 'doughnut',
+    data: {
+      labels: tipiLabele,
+      datasets: [{
+        data: tipiVrednosti,
+        backgroundColor: tipiBarve.slice(0, tipiLabele.length),
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom' } }
+    }
+  });
+}
+
+// Chart 3: Delovne ure po letu
+new Chart(document.getElementById('chartUre'), {
+  type: 'bar',
+  data: {
+    labels: leta,
+    datasets: [{
+      label: 'Delovne ure',
+      data: ureData,
+      backgroundColor: 'rgba(25, 135, 84, 0.7)',
+      borderColor: 'rgba(25, 135, 84, 1)',
+      borderWidth: 1,
+    }]
+  },
+  options: {
+    responsive: true,
+    scales: { y: { beginAtZero: true } },
+    plugins: { legend: { display: false } }
+  }
+});
+</script>
+{% endblock %}

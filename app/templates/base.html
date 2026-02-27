@@ -38,6 +38,21 @@
             <i class="bi bi-people me-1"></i>Skupine
           </a>
         </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path.startswith('/aktivnosti') %}active{% endif %}" href="/aktivnosti">
+            <i class="bi bi-activity me-1"></i>Aktivnosti
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path.startswith('/clanarine') %}active{% endif %}" href="/clanarine">
+            <i class="bi bi-cash-stack me-1"></i>Plačila
+          </a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link {% if request.url.path.startswith('/dashboard') %}active{% endif %}" href="/dashboard">
+            <i class="bi bi-bar-chart-fill me-1"></i>Dashboard
+          </a>
+        </li>
         {% if is_admin %}
         <li class="nav-item">
           <a class="nav-link {% if request.url.path.startswith('/uporabniki') %}active{% endif %}" href="/uporabniki">

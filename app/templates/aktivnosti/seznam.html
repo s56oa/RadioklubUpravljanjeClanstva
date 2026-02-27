@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Evidenca aktivnosti – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h4 class="mb-0"><i class="bi bi-activity me-2 text-primary"></i>Evidenca aktivnosti</h4>
+</div>
+
+<!-- Filter -->
+<div class="card mb-3">
+  <div class="card-body py-2">
+    <div class="d-flex gap-2 align-items-center flex-wrap">
+      <span class="text-muted small me-1">Prikaži:</span>
+      <a href="/aktivnosti?filter=leto" class="btn btn-sm {% if filter == 'leto' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar me-1"></i>Trenutno leto
+      </a>
+      <a href="/aktivnosti?filter=2leti" class="btn btn-sm {% if filter == '2leti' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar2 me-1"></i>Zadnji 2 leti
+      </a>
+      <a href="/aktivnosti?filter=10let" class="btn btn-sm {% if filter == '10let' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar3 me-1"></i>Zadnjih 10 let
+      </a>
+      <a href="/aktivnosti?filter=vse" class="btn btn-sm {% if filter == 'vse' %}btn-primary{% else %}btn-outline-primary{% endif %}">
+        <i class="bi bi-calendar4 me-1"></i>Vse
+      </a>
+    </div>
+  </div>
+</div>
+
+<!-- Tabela -->
+<div class="card">
+  <div class="card-body p-0">
+    <div class="table-responsive">
+      <table id="tabela-aktivnosti" class="table table-hover table-striped mb-0 align-middle">
+        <thead class="table-primary">
+          <tr>
+            <th>Leto</th>
+            <th>Datum</th>
+            <th>Član</th>
+            <th>Opis</th>
+            <th class="text-end">Del. ure</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for a in aktivnosti %}
+          <tr>
+            <td>{{ a.leto }}</td>
+            <td>{{ a.datum.strftime('%d.%m.%Y') if a.datum else '–' }}</td>
+            <td>
+              {% if a.clan %}
+              <a href="/clani/{{ a.clan_id }}" class="text-decoration-none">
+                {{ a.clan.priimek }} {{ a.clan.ime }}
+              </a>
+              {% else %}–{% endif %}
+            </td>
+            <td>{{ a.opis }}</td>
+            <td class="text-end">
+              {% if a.delovne_ure is not none %}{{ '%.1f'|format(a.delovne_ure) }}{% else %}–{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  <div class="card-footer text-muted small d-flex justify-content-between flex-wrap gap-2">
+    <span>Skupaj: <strong>{{ aktivnosti|length }}</strong> vnosov</span>
+    <span>Delovne ure skupaj: <strong>{{ ure_skupaj }}</strong> h</span>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+$(document).ready(function() {
+  $('#tabela-aktivnosti').DataTable({
+    responsive: true,
+    language: {
+      url: 'https://cdn.datatables.net/plug-ins/2.1.8/i18n/sl.json',
+      emptyTable: 'Ni aktivnosti za izbrano obdobje'
+    },
+    pageLength: 25,
+    order: [[0, 'desc'], [1, 'desc']],
+    columnDefs: [
+      { responsivePriority: 1, targets: 2 },
+      { responsivePriority: 2, targets: 3 },
+      { responsivePriority: 3, targets: 0 },
+      { responsivePriority: 4, targets: 1 },
+      { responsivePriority: 5, targets: 4 },
+    ],
+  });
+});
+</script>
+{% endblock %}

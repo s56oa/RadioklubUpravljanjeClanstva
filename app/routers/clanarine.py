@@ -1,15 +1,69 @@
+from collections import defaultdict
 from datetime import date
 
 from fastapi import APIRouter, Request, Form, Depends
-from fastapi.responses import RedirectResponse
-from sqlalchemy.orm import Session
+from fastapi.responses import RedirectResponse, HTMLResponse, Response
+from fastapi.templating import Jinja2Templates
+from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
-from ..models import Clanarina
-from ..auth import require_login, is_editor
-from ..csrf import csrf_protect
+from ..models import Clanarina, Clan
+from ..auth import require_login, is_editor, is_admin
+from ..csrf import get_csrf_token, csrf_protect
 
 router = APIRouter(prefix="/clanarine")
+templates = Jinja2Templates(directory="app/templates")
+templates.env.globals["csrf_token"] = get_csrf_token
+
+
+@router.get("", response_class=HTMLResponse)
+async def seznam(
+    request: Request,
+    filter: str = "leto",
+    db: Session = Depends(get_db),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    leto_zdaj = date.today().year
+    query = db.query(Clanarina).options(joinedload(Clanarina.clan))
+
+    if filter == "leto":
+        query = query.filter(Clanarina.leto == leto_zdaj)
+    elif filter == "2leti":
+        query = query.filter(Clanarina.leto >= leto_zdaj - 1)
+    elif filter == "10let":
+        query = query.filter(Clanarina.leto >= leto_zdaj - 9)
+    # filter == "vse": no year filter
+
+    clanarine = query.order_by(Clanarina.leto.desc()).all()
+
+    # Seštevki po letu (samo plačane)
+    sestevki: dict = defaultdict(lambda: {"stevilo_placanih": 0, "skupaj": 0.0})
+    for c in clanarine:
+        if c.datum_placila:
+            sestevki[c.leto]["stevilo_placanih"] += 1
+            if c.znesek:
+                try:
+                    val = float(c.znesek.replace(",", ".").replace("€", "").strip())
+                    sestevki[c.leto]["skupaj"] += val
+                except ValueError:
+                    pass
+    sestevki_sorted = sorted(sestevki.items(), reverse=True)
+
+    return templates.TemplateResponse(
+        "clanarine/seznam.html",
+        {
+            "request": request,
+            "user": user,
+            "clanarine": clanarine,
+            "filter": filter,
+            "leto_zdaj": leto_zdaj,
+            "sestevki_sorted": sestevki_sorted,
+            "is_admin": is_admin(user),
+        },
+    )
 
 
 @router.post("/dodaj")

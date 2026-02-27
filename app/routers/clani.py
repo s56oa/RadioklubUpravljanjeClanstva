@@ -40,6 +40,7 @@ async def seznam(
     aktiven: str = "da",
     placal: str = "",
     rd: str = "",
+    leto_placila: int = 0,
     db: Session = Depends(get_db),
 ) -> Response:
     user, redirect = require_login(request)
@@ -48,7 +49,8 @@ async def seznam(
 
     danes = date.today()
     kmalu_meja = danes + timedelta(days=180)
-    leto = danes.year
+    leto_zdaj = danes.year
+    leto_ef = leto_placila if leto_placila else leto_zdaj
     query = db.query(Clan)
 
     if aktiven == "da":
@@ -79,10 +81,10 @@ async def seznam(
 
     clani = query.order_by(Clan.priimek, Clan.ime).all()
 
-    # Pripravi set članov ki so plačali za tekoče leto
+    # Pripravi set članov ki so plačali za izbrano leto
     placali_ids = {
         c.clan_id
-        for c in db.query(Clanarina).filter(Clanarina.leto == leto).all()
+        for c in db.query(Clanarina).filter(Clanarina.leto == leto_ef).all()
         if c.datum_placila is not None
     }
 
@@ -104,7 +106,9 @@ async def seznam(
             "rd": rd,
             "tipi_clanstva": get_tipi_clanstva(db),
             "placali_ids": placali_ids,
-            "leto": leto,
+            "leto": leto_ef,
+            "leto_zdaj": leto_zdaj,
+            "leto_placila": leto_placila,
             "danes": danes,
             "kmalu_meja": kmalu_meja,
             "is_editor": is_editor(user),

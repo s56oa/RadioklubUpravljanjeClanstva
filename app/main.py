@@ -26,7 +26,7 @@ from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus,
 from .auth import hash_geslo, preveri_geslo
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
-from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit
+from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.13"
-APP_RELEASE_DATE = "2026-02-26"
+APP_VERSION = "1.14"
+APP_RELEASE_DATE = "2026-02-27"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -279,6 +279,7 @@ app.include_router(profil.router)
 app.include_router(aktivnosti.router)
 app.include_router(skupine.router)
 app.include_router(audit.router)
+app.include_router(dashboard.router)
 
 
 # ---------------------------------------------------------------------------
