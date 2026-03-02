@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.14 | Datum: 2026-02-27*
+*Različica 1.15 | Datum: 2026-03-02*
 
 ---
 
@@ -22,6 +22,7 @@
 14. [Dnevnik sprememb (Audit log)](#14-dnevnik-sprememb-audit-log)
 15. [Moj profil, geslo in 2FA](#15-moj-profil-geslo-in-2fa)
 16. [Statistični dashboard](#16-statistični-dashboard)
+17. [Vloge in funkcije člana](#17-vloge-in-funkcije-člana)
 
 ---
 
@@ -32,6 +33,7 @@ Aplikacija za upravljanje članstva radiokluba omogoča:
 - vodenje evidence vseh članov z njihovimi kontaktnimi podatki in licenčnimi podatki,
 - beleženje plačil članarine po posameznih letih,
 - beleženje aktivnosti in delovnih ur posameznih članov,
+- vodenje zgodovine vlog in funkcij člana (predsednik, tajnik, blagajnik …),
 - razvrščanje članov v interesne skupine,
 - uvoz obstoječih podatkov iz Excel datoteke in izvoz za prijavo na ZRS (Zveza radioamaterjev Slovenije),
 - varno upravljanje z vlogami: vsak uporabnik vidi ali ureja samo tisto, do česar je pooblaščen.
@@ -138,6 +140,7 @@ Kartica vsebuje:
 - **Skupinske oznake**: modri značkasti gumbi z imeni skupin, ki jim član pripada (klik odpre skupino).
 - **Evidenca plačil**: tabela plačil po letih z datumom, zneskom in opombami.
 - **Evidenca aktivnosti**: tabela aktivnosti po letih z opisom in delovnimi urami.
+- **Vloge in funkcije**: tabela vseh vlog z datumskim razponom in barvnimi značkami (zelena = aktivna, siva = pretekla).
 
 ### Filter prikazanih let
 
@@ -331,10 +334,11 @@ V izvozu so samo aktivni člani, ki so plačali za izbrano leto in katerih tip �
 
 ### Excel backup
 
-Ustvari backup vseh podatkov v treh listih:
+Ustvari backup vseh podatkov v štirih listih:
 - **Clani** – vsi podatki o članih,
 - **Clanarine** – vsa plačila po članih in letih,
-- **Aktivnosti** – vse aktivnosti z delovnimi urami.
+- **Aktivnosti** – vse aktivnosti z delovnimi urami,
+- **Vloge** – celotna zgodovina vlog vseh članov (priimek, ime, klicni znak, naziv, datum od, datum do, opombe).
 
 Kliknite **Prenesi Excel backup**.
 
@@ -364,13 +368,15 @@ Vnesite uradne podatke kluba, ki se izpišejo v navigacijski vrstici in vključi
 
 > Klicni znak in ime kluba se takoj prikažeta v navigacijski vrstici in na prijavni strani.
 
-### Tipi članstva in operaterski razredi
+### Nastavljivi seznami
 
 Prilagodite sezname vrednosti, ki se pojavljajo v spustnih menijih pri vnosu in urejanju članov. Vsako vrednost vpišite v svojo vrstico.
 
 **Privzeti tipi članstva:** Osebni, Družinski, Simpatizerji, Mladi, Invalid
 
 **Privzeti operaterski razredi:** A, N, A - CW, N - CW
+
+**Privzete vloge članov:** Predsednik, Tajnik, Blagajnik, Član UO, Predsednik NO, Član NO, Častni član
 
 Spremembe uveljavite s klikom **Shrani nastavitve**.
 
@@ -528,4 +534,38 @@ Trije interaktivni grafi prikazujejo podatke za **zadnjih 10 let**:
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.14 (2026-02-27)*
+## 17. Vloge in funkcije člana
+
+Na kartici člana se pod evidenco aktivnosti nahaja rumena sekcija **Vloge in funkcije**.
+
+Evidenca vlog omogoča beleženje zgodovine vseh funkcij, ki jih je član zasedal v klubu (npr. predsednik, blagajnik, tajnik, častni član), skupaj z datumskim razponom mandata.
+
+### Prikaz vlog
+
+Vsaka vloga je prikazana v tabeli z:
+- **Nazivom** funkcije,
+- **Obdobjem** (datum od – datum do),
+- **Barvno značko**: zelena = aktivna vloga (brez datuma konca ali v prihodnosti), siva = pretekla vloga,
+- **Opombami** (npr. "Izvoljen na skupščini 2020").
+
+### Dodajanje vloge
+
+Dostopno za urednike in admin.
+
+1. V obrazcu izberite **naziv vloge** iz spustnega seznama (ali vnesite lastni naziv v polje *Drugi naziv*).
+2. Vnesite **datum od** (obvezno).
+3. Po želji vnesite **datum do** (prazno = vloga je aktivna brez roka).
+4. Po želji vnesite **opombe**.
+5. Kliknite **Dodaj vlogo**.
+
+> Nastavljive vloge (spustni seznam) urejate v **Nastavitve → Vloge in funkcije članov**.
+
+### Brisanje vloge
+
+Dostopno samo za admin. Kliknite gumb **Izbriši** (koš) ob vnosu. Brisanje je takojšnje brez potrditvenega okna.
+
+> Ob brisanju člana se samodejno izbrišejo tudi vse njegove vloge.
+
+---
+
+*Radio klub Člani – Upravljanje Članstva – različica 1.15 (2026-03-02)*
