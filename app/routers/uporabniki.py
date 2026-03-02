@@ -49,6 +49,7 @@ async def seznam(request: Request, db: Session = Depends(get_db)) -> Response:
 
     uporabniki = db.query(Uporabnik).order_by(Uporabnik.ime_priimek).all()
     return templates.TemplateResponse(
+        request,
         "uporabniki/seznam.html",
         {
             "request": request,
@@ -67,6 +68,7 @@ async def nov_form(request: Request) -> Response:
     if not is_admin(user):
         return RedirectResponse(url="/clani", status_code=302)
     return templates.TemplateResponse(
+        request,
         "uporabniki/form.html",
         {
             "request": request,
@@ -97,6 +99,7 @@ async def nov_shrani(
     napaka_geslo = preveri_zahteve_gesla(geslo)
     if napaka_geslo:
         return templates.TemplateResponse(
+            request,
             "uporabniki/form.html",
             {
                 "request": request,
@@ -110,6 +113,7 @@ async def nov_shrani(
 
     if db.query(Uporabnik).filter(Uporabnik.uporabnisko_ime == uporabnisko_ime).first():
         return templates.TemplateResponse(
+            request,
             "uporabniki/form.html",
             {
                 "request": request,
@@ -152,6 +156,7 @@ async def uredi_form(request: Request, uid: int, db: Session = Depends(get_db)) 
     zacasno_geslo = request.session.pop("zacasno_geslo", None)
 
     return templates.TemplateResponse(
+        request,
         "uporabniki/form.html",
         {
             "request": request,
@@ -210,6 +215,7 @@ async def uredi_shrani(
         napaka_geslo = preveri_zahteve_gesla(novo_geslo)
         if napaka_geslo:
             return templates.TemplateResponse(
+                request,
                 "uporabniki/form.html",
                 {
                     "request": request,

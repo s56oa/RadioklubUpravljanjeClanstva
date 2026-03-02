@@ -22,11 +22,11 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
 from sqlalchemy import inspect as sa_inspect
 from .database import engine, SessionLocal, get_db
-from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
+from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO, VLOGE_CLANOV_PRIVZETO
 from .auth import hash_geslo, preveri_geslo
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
-from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard
+from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard, vloge
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.14"
-APP_RELEASE_DATE = "2026-02-27"
+APP_VERSION = "1.15"
+APP_RELEASE_DATE = "2026-03-02"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -53,6 +53,7 @@ PRIVZETE_NASTAVITVE = {
     "klub_email": ("", "E-poštni naslov kluba"),
     "tipi_clanstva": ("\n".join(TIPI_CLANSTVA_PRIVZETO), "Tipi članstva (ena vrednost na vrstico)"),
     "operaterski_razredi": ("\n".join(OPERATERSKI_RAZREDI_PRIVZETO), "Operaterski razredi (ena vrednost na vrstico)"),
+    "vloge_clanov": ("\n".join(VLOGE_CLANOV_PRIVZETO), "Vloge in funkcije članov (ena vrednost na vrstico)"),
 }
 
 _MAX_ATTEMPTS = 10        # max neuspešnih prijav
@@ -280,6 +281,7 @@ app.include_router(aktivnosti.router)
 app.include_router(skupine.router)
 app.include_router(audit.router)
 app.include_router(dashboard.router)
+app.include_router(vloge.router)
 
 
 # ---------------------------------------------------------------------------
@@ -303,7 +305,7 @@ async def login_stran(request: Request) -> Response:
     if request.session.get("uporabnik"):
         return RedirectResponse(url="/clani", status_code=302)
     timeout = request.query_params.get("timeout") == "1"
-    return templates.TemplateResponse("login.html", {"request": request, "timeout": timeout})
+    return templates.TemplateResponse(request, "login.html", {"request": request, "timeout": timeout})
 
 
 @app.post("/login", response_class=HTMLResponse)
@@ -320,6 +322,7 @@ async def login(
     if not _check_rate_limit(ip, db):
         logger.warning(f"Preveč poskusov prijave z IP {ip}")
         return templates.TemplateResponse(
+            request,
             "login.html",
             {"request": request, "napaka": "Preveč neuspešnih poskusov. Počakajte 15 minut."},
         )
@@ -384,6 +387,7 @@ async def login(
     logger.warning(f"Neuspešna prijava: {uporabnisko_ime} ({ip})")
     log_akcija(db, uporabnisko_ime, "login_fail", f"Neuspešna prijava: {uporabnisko_ime}", ip=ip)
     return templates.TemplateResponse(
+        request,
         "login.html",
         {"request": request, "napaka": "Napačno uporabniško ime ali geslo."},
     )
@@ -393,7 +397,7 @@ async def login(
 async def login_2fa_stran(request: Request) -> Response:
     if not request.session.get("_2fa_cakanje"):
         return RedirectResponse(url="/login", status_code=302)
-    return templates.TemplateResponse("login-2fa.html", {"request": request})
+    return templates.TemplateResponse(request, "login-2fa.html", {"request": request})
 
 
 @app.post("/login/2fa", response_class=HTMLResponse)
@@ -412,6 +416,7 @@ async def login_2fa(
 
     if not _check_rate_limit(ip, db):
         return templates.TemplateResponse(
+            request,
             "login-2fa.html",
             {"request": request, "napaka": "Preveč neuspešnih poskusov. Počakajte 15 minut."},
         )
@@ -457,6 +462,7 @@ async def login_2fa(
     logger.warning(f"Napačna 2FA koda: {uporabnisko_ime} ({ip})")
     log_akcija(db, uporabnisko_ime, "login_2fa_napaka", f"Napačna 2FA koda: {uporabnisko_ime}", ip=ip)
     return templates.TemplateResponse(
+        request,
         "login-2fa.html",
         {"request": request, "napaka": "Napačna koda. Poskusite znova."},
     )

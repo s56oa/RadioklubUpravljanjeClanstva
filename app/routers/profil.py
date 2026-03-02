@@ -39,6 +39,7 @@ async def profil_stran(request: Request, db: Session = Depends(get_db)) -> Respo
     )
 
     return templates.TemplateResponse(
+        request,
         "profil/index.html",
         {
             "request": request,
@@ -97,6 +98,7 @@ async def spremeni_geslo(
 
     def vrni_napako(napaka: str):
         return templates.TemplateResponse(
+            request,
             "profil/index.html",
             {
                 "request": request,
@@ -150,6 +152,7 @@ async def tfa_nastavi_stran(request: Request, db: Session = Depends(get_db)) -> 
     qr_svg = _generiraj_qr_svg(skrivnost, u.uporabnisko_ime, klub_ime)
 
     return templates.TemplateResponse(
+        request,
         "profil/2fa-nastavi.html",
         {
             "request": request,
@@ -192,6 +195,7 @@ async def tfa_potrdi(
     qr_svg = _generiraj_qr_svg(skrivnost, u.uporabnisko_ime, klub_ime)
 
     return templates.TemplateResponse(
+        request,
         "profil/2fa-nastavi.html",
         {
             "request": request,
@@ -230,6 +234,7 @@ async def tfa_onemogoči(
         return response
 
     return templates.TemplateResponse(
+        request,
         "profil/index.html",
         {
             "request": request,

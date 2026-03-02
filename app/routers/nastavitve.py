@@ -7,7 +7,7 @@ from ..database import get_db
 from ..models import Nastavitev
 from ..auth import require_login, is_admin
 from ..config import get_seznam, get_tipi_clanstva, get_operaterski_razredi
-from ..models import TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
+from ..models import TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO, VLOGE_CLANOV_PRIVZETO
 from ..csrf import get_csrf_token, csrf_protect
 
 router = APIRouter(prefix="/nastavitve")
@@ -27,6 +27,7 @@ KLJUCI_KLUB = [
 KLJUCI_SEZNAM = [
     ("tipi_clanstva", "Tipi članstva", TIPI_CLANSTVA_PRIVZETO),
     ("operaterski_razredi", "Operaterski razredi", OPERATERSKI_RAZREDI_PRIVZETO),
+    ("vloge_clanov", "Vloge in funkcije članov", VLOGE_CLANOV_PRIVZETO),
 ]
 
 
@@ -46,6 +47,7 @@ async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> R
             nas[kljuc] = "\n".join(privzeto)
 
     return templates.TemplateResponse(
+        request,
         "nastavitve/index.html",
         {
             "request": request,

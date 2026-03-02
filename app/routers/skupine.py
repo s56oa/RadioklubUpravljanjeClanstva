@@ -21,6 +21,7 @@ async def seznam(request: Request, db: Session = Depends(get_db)) -> Response:
 
     skupine = db.query(Skupina).order_by(Skupina.ime).all()
     return templates.TemplateResponse(
+        request,
         "skupine/seznam.html",
         {
             "request": request,
@@ -40,6 +41,7 @@ async def nova_form(request: Request) -> Response:
     if not is_editor(user):
         return RedirectResponse(url="/skupine", status_code=302)
     return templates.TemplateResponse(
+        request,
         "skupine/form.html",
         {
             "request": request,
@@ -92,6 +94,7 @@ async def detail(request: Request, skupid: int, db: Session = Depends(get_db)) -
     clani_v_skupini = sorted(skupina.clani, key=lambda c: (c.priimek, c.ime))
 
     return templates.TemplateResponse(
+        request,
         "skupine/detail.html",
         {
             "request": request,

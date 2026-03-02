@@ -59,6 +59,7 @@
 | Pregled vseh plačil | ✅ | v1.14 | GET /clanarine; isti filtri; kartice s seštevki po letu (count + skupaj €); DataTables |
 | Neplačniki po izbranem letu | ✅ | v1.14 | Filter `leto_placila` na /clani; year selector z auto-submit; privzeto tekoče leto |
 | Statistični dashboard | ✅ | v1.14 | GET /dashboard; 6 stat kartic; Chart.js: plačila po letu (bar), tipi članstva (doughnut), delovne ure po letu (bar) |
+| Evidenca vlog in funkcij člana z zgodovino | ✅ | v1.15 | ClanVloga model; Alembic 004; kartica na /clani/{id}; dodaj (editor+), izbriši (admin); nastavljive vloge v nastavitvah; Backup Excel list "Vloge"; 15 testov |
 
 ---
 
@@ -134,7 +135,80 @@
 - [x] Pisati unit teste za kritične funkcije (auth, csrf, normalizacija, config, audit, routes) – implementirano v v1.8
 - [x] Alembic migracije namesto ročnih ALTER TABLE – implementirano v v1.12
 - [x] Logging v datoteko namesto samo na stdout – implementirano v v1.12
+- [x] **Starlette `TemplateResponse` podpis** – posodobljeni vsi klici (42 v 12 datotekah) na novo signaturo `TemplateResponse(request, "ime.html", {...})` (46 testov zelenih)
 
 ---
 
-*Zadnja posodobitev: 2026-02-27 (v1.14)*
+## Optimizacije zmogljivosti
+
+### Indeksi na bazi podatkov
+
+Analiza obstoječih poizvedb kaže na pomanjkanje indeksov na pogosto filtriranih stolpcih.
+Vse spremembe zahtevajo novo Alembic migracijo (npr. `004_indeksi.py`).
+
+| Tabela | Stolpec(ci) | Razlog | Prioriteta |
+|---|---|---|---|
+| `clanarine` | `clan_id` | FK – lazy loading pri `clan.clanarine` (detail stran) | **Visoka** |
+| `clanarine` | `leto` | Filter na `/clanarine` in poizvedba `placali_ids` na `/clani` | **Visoka** |
+| `clanarine` | `(clan_id, leto)` | Kompozitni index – upsert check: `filter(clan_id==X, leto==Y)` | **Visoka** |
+| `aktivnosti` | `clan_id` | FK – lazy loading pri `clan.aktivnosti` (detail stran) | **Visoka** |
+| `aktivnosti` | `leto` | Filter na `/aktivnosti` (WHERE leto >= ...) | **Visoka** |
+| `clani` | `aktiven` | Najpogostejši filter na `/clani` – vsaka nalaganje seznama | **Srednja** |
+| `clani` | `(priimek, ime)` | ORDER BY na `/clani`; uvoz Excel identificira po priimek+ime | **Srednja** |
+| `clani` | `veljavnost_rd` | RD filter (`potekla/kmalu/veljavna/brez`) | **Nizka** |
+| `audit_log` | `cas` | ORDER BY `cas DESC` pri prikazu in izvozu | **Nizka** |
+
+**Opomba:** SQLite je pri majhnih zbirkah (<500 članov) hiter tudi brez indeksov. Indeksi postanejo opazno koristni pri `audit_log`, ki raste brez omejitev.
+
+### Predpomnjenje nastavitev (caching)
+
+`config.get_tipi_clanstva(db)` in `config.get_operaterski_razredi(db)` sta klicani pri vsakem obrazcu za člana in pri vsakem uvozu. Ker se nastavitve redko spreminjajo, bi kratkotrajen (npr. 60 s) in-memory cache prepolovil število DB poizvedb na teh straneh.
+
+- **Pristop:** `functools.lru_cache` z ročnim izklopom ob shranjevanju v `/nastavitve`; ali enostavni `dict` s `time.time()` TTL v `config.py`.
+- **Obseg:** ~1 ura
+
+### `KlubContextMiddleware` overhead
+
+Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhnem prometu zanemarljivo; pri večji obremenitvi ali migraciji na produkcijski strežnik smiselno predpomnjiti v `app.state` z izklopom ob spremembi nastavitev.
+
+---
+
+## Evidenca vlog in funkcij člana
+
+### Problem
+
+Trenutno ni možnosti beleženja zgodovine funkcij, ki jih je član zasedal v klubu (npr. predsednik, blagajnik, tajnik, častni član). Skupiny so statične (brez datumov veljavnosti) in ne ustrezajo za ta namen.
+
+### Predlog podatkovnega modela
+
+Nova tabela `clan_vloga`:
+
+| Stolpec | Tip | Opis |
+|---|---|---|
+| `id` | Integer PK | |
+| `clan_id` | Integer FK → clani | Kaskadno brisanje |
+| `naziv` | String | Naziv funkcije (npr. "Predsednik") |
+| `datum_od` | Date, NOT NULL | Začetek mandata |
+| `datum_do` | Date, nullable | Konec mandata; NULL = "brez poteka" |
+| `opombe` | String, nullable | Npr. "Izvoljen na skupščini 2010" |
+
+Primer:
+- S52BI, "Predsednik", 2010-01-01 → 2014-02-01
+- S52BI, "Častni član", 2014-02-01 → NULL (brez poteka)
+
+**Razlika od Skupina:** Skupiny so binarne (je/ni član) in brez datumov. `ClanVloga` ima obvezen `datum_od` in opcijski `datum_do` → primerno za zgodovino.
+
+### Implementacija
+
+- **Alembic:** Nova migracija `004_clan_vloge.py`
+- **Nastavitve:** Nastavljiv seznam možnih vlog v `/nastavitve` (podobno kot tipi_clanstva; shranjeno kot `vloge_clanov` v tabeli Nastavitev)
+- **Strani:**
+  - `/clani/{id}` – nova kartica "Vloge in funkcije" (pod aktivnostmi); ločeno aktivne (datum_do IS NULL ali v prihodnosti) in pretekle vloge
+  - Dodaj/izbriši prek POST obrazca (editor+admin; brisanje admin only)
+- **Prikaz:** Badge z datumskim razponom; "aktivne" vloge drugače obarvane (npr. zelena)
+- **Backup Excel:** 4. list "Vloge" s stolpci Priimek, Ime, Klicni znak, Naziv, Datum od, Datum do, Opombe
+- **Obseg:** ~4 ure (model + migracija + router + template + backup)
+
+---
+
+*Zadnja posodobitev: 2026-03-02 (v1.15)*

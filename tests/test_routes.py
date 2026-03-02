@@ -50,6 +50,13 @@ def test_get_health(client):
     assert resp.json() == {"status": "ok"}
 
 
+def test_verzijska_znacka_vsebuje_verzijo(client, db):
+    _login(client, db)
+    resp = client.get("/clani")
+    assert resp.status_code == 200
+    assert "1.15" in resp.text
+
+
 def test_get_clani_brez_seje(client):
     resp = client.get("/clani", follow_redirects=False)
     assert resp.status_code == 302

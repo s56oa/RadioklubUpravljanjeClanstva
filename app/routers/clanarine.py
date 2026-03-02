@@ -53,6 +53,7 @@ async def seznam(
     sestevki_sorted = sorted(sestevki.items(), reverse=True)
 
     return templates.TemplateResponse(
+        request,
         "clanarine/seznam.html",
         {
             "request": request,

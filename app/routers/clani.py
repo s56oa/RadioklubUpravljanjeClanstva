@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from ..database import get_db
 from ..models import Clan, Clanarina
 from ..auth import get_user, require_login, is_editor, is_admin
-from ..config import get_tipi_clanstva, get_operaterski_razredi
+from ..config import get_tipi_clanstva, get_operaterski_razredi, get_vloge_clanov
 from ..csrf import get_csrf_token, csrf_protect
 from ..audit_log import log_akcija
 
@@ -94,6 +94,7 @@ async def seznam(
         clani = [c for c in clani if c.id not in placali_ids]
 
     return templates.TemplateResponse(
+        request,
         "clani/seznam.html",
         {
             "request": request,
@@ -125,6 +126,7 @@ async def nov_form(request: Request, db: Session = Depends(get_db)) -> Response:
     if not is_editor(user):
         return RedirectResponse(url="/clani", status_code=302)
     return templates.TemplateResponse(
+        request,
         "clani/form.html",
         {
             "request": request,
@@ -172,6 +174,7 @@ async def nov_shrani(
     )
     if napaka:
         return templates.TemplateResponse(
+            request,
             "clani/form.html",
             {
                 "request": request,
@@ -233,6 +236,7 @@ async def detail(request: Request, clan_id: int, db: Session = Depends(get_db)) 
     vsa_leta = list(range(leto_zdaj, 2016, -1))
 
     return templates.TemplateResponse(
+        request,
         "clani/detail.html",
         {
             "request": request,
@@ -243,6 +247,7 @@ async def detail(request: Request, clan_id: int, db: Session = Depends(get_db)) 
             "leto_zdaj": leto_zdaj,
             "today": date.today(),
             "aktivnosti": clan.aktivnosti,
+            "vloge_clanov": get_vloge_clanov(db),
             "is_editor": is_editor(user),
             "is_admin": is_admin(user),
         },
@@ -262,6 +267,7 @@ async def uredi_form(request: Request, clan_id: int, db: Session = Depends(get_d
         return RedirectResponse(url="/clani", status_code=302)
 
     return templates.TemplateResponse(
+        request,
         "clani/form.html",
         {
             "request": request,
@@ -314,6 +320,7 @@ async def uredi_shrani(
     )
     if napaka:
         return templates.TemplateResponse(
+            request,
             "clani/form.html",
             {
                 "request": request,

@@ -78,6 +78,7 @@ async def index(request: Request, db: Session = Depends(get_db)) -> Response:
         ure_po_letu.append(round(float(ure or 0), 1))
 
     return templates.TemplateResponse(
+        request,
         "dashboard/index.html",
         {
             "request": request,

@@ -1,6 +1,6 @@
 """Pomožne funkcije za branje nastavitev iz baze."""
 from sqlalchemy.orm import Session
-from .models import Nastavitev, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO
+from .models import Nastavitev, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO, VLOGE_CLANOV_PRIVZETO
 
 
 def get_nastavitev(db: Session, kljuc: str, privzeto: str = "") -> str:
@@ -22,3 +22,7 @@ def get_tipi_clanstva(db: Session) -> list:
 
 def get_operaterski_razredi(db: Session) -> list:
     return get_seznam(db, "operaterski_razredi", OPERATERSKI_RAZREDI_PRIVZETO)
+
+
+def get_vloge_clanov(db: Session) -> list:
+    return get_seznam(db, "vloge_clanov", VLOGE_CLANOV_PRIVZETO)

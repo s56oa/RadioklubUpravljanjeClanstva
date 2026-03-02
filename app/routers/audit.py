@@ -40,6 +40,7 @@ async def audit_seznam(
     ]
 
     return templates.TemplateResponse(
+        request,
         "audit/seznam.html",
         {
             "request": request,

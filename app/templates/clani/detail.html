@@ -370,6 +370,114 @@
     </div>
   </div>
 
+  <!-- Vloge in funkcije -->
+  <div class="col-12" id="vloge">
+    <div class="card">
+      <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+        <span><i class="bi bi-person-badge me-2"></i>Vloge in funkcije</span>
+        {% if is_editor %}
+        <button class="btn btn-light btn-sm" data-bs-toggle="collapse" data-bs-target="#formDodajVlogo">
+          <i class="bi bi-plus-circle me-1"></i>Dodaj vlogo
+        </button>
+        {% endif %}
+      </div>
+
+      {% if is_editor %}
+      <div class="collapse" id="formDodajVlogo">
+        <div class="card-body border-bottom bg-light">
+          <form method="post" action="/vloge/dodaj" class="row g-2 align-items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+            <input type="hidden" name="clan_id" value="{{ clan.id }}">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Vloga / funkcija <span class="text-danger">*</span></label>
+              <select name="naziv" class="form-select form-select-sm" required>
+                <option value="">– izberite –</option>
+                {% for v in vloge_clanov %}
+                <option value="{{ v }}">{{ v }}</option>
+                {% endfor %}
+              </select>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Datum od <span class="text-danger">*</span></label>
+              <input type="date" name="datum_od" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small mb-1">Datum do</label>
+              <input type="date" name="datum_do" class="form-control form-control-sm"
+                     placeholder="Prazno = brez poteka">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Opombe</label>
+              <input type="text" name="opombe" class="form-control form-control-sm"
+                     placeholder="Neobvezno...">
+            </div>
+            <div class="col-md-2">
+              <button type="submit" class="btn btn-warning btn-sm w-100">
+                <i class="bi bi-save me-1"></i>Shrani
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="card-body p-0">
+        {% if clan.vloge %}
+        <div class="table-responsive">
+        <table class="table table-sm mb-0 align-middle">
+          <thead class="table-light">
+            <tr>
+              <th>Vloga / funkcija</th>
+              <th>Datum od</th>
+              <th>Datum do</th>
+              <th>Opombe</th>
+              {% if is_admin %}<th class="text-center">Akcija</th>{% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for v in clan.vloge %}
+            {% set aktivna = v.datum_do is none or v.datum_do >= today %}
+            <tr {% if aktivna %}class="table-success"{% endif %}>
+              <td>
+                <span class="badge {% if aktivna %}bg-success{% else %}bg-secondary{% endif %}">
+                  {{ v.naziv }}
+                </span>
+              </td>
+              <td>{{ v.datum_od.strftime('%d. %m. %Y') }}</td>
+              <td>
+                {% if v.datum_do %}
+                {{ v.datum_do.strftime('%d. %m. %Y') }}
+                {% else %}
+                <span class="text-muted fst-italic">brez poteka</span>
+                {% endif %}
+              </td>
+              <td>{{ v.opombe or '' }}</td>
+              {% if is_admin %}
+              <td class="text-center">
+                <form method="post" action="/vloge/izbrisi/{{ v.id }}" class="d-inline"
+                      onsubmit="return confirm('Izbriši vlogo {{ v.naziv }}?')">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+                  <input type="hidden" name="clan_id" value="{{ clan.id }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm py-0">
+                    <i class="bi bi-trash"></i>
+                  </button>
+                </form>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        </div>
+        {% else %}
+        <div class="text-muted text-center py-3 small">
+          <i class="bi bi-person-badge me-1"></i>Ni vpisanih vlog.
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
 <!-- Modal brisanja -->
 {% if is_admin %}
 <div class="modal fade" id="modalIzbrisi" tabindex="-1">

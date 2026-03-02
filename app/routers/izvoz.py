@@ -14,7 +14,7 @@ from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
 from ..database import get_db
-from ..models import Clan, Clanarina, Aktivnost, Nastavitev
+from ..models import Clan, Clanarina, Aktivnost, Nastavitev, ClanVloga
 from ..auth import require_login, is_admin, is_editor
 from ..config import get_nastavitev, get_tipi_clanstva, get_operaterski_razredi
 from ..csrf import get_csrf_token, csrf_protect
@@ -527,6 +527,7 @@ async def izvoz_stran(request: Request, db: Session = Depends(get_db)) -> Respon
         return redirect
     leto = date.today().year
     return templates.TemplateResponse(
+        request,
         "izvoz/index.html",
         {
             "request": request,
@@ -770,6 +771,23 @@ async def backup_excel(request: Request, db: Session = Depends(get_db)) -> Respo
             a.delovne_ure if a.delovne_ure is not None else "",
         ])
 
+    # Sheet za vloge
+    ws4 = wb.create_sheet("Vloge")
+    ws4.append(["Priimek", "Ime", "Klicni znak", "Naziv", "Datum od", "Datum do", "Opombe"])
+    ws4[1][0].font = header_font
+    vloge = db.query(ClanVloga).order_by(ClanVloga.clan_id, ClanVloga.datum_od.desc()).all()
+    for v in vloge:
+        clan = clan_map.get(v.clan_id)
+        ws4.append([
+            clan.priimek if clan else "",
+            clan.ime if clan else "",
+            clan.klicni_znak or "" if clan else "",
+            v.naziv,
+            v.datum_od.isoformat() if v.datum_od else "",
+            v.datum_do.isoformat() if v.datum_do else "",
+            v.opombe or "",
+        ])
+
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
@@ -835,6 +853,7 @@ async def uvozi_stran(request: Request, db: Session = Depends(get_db)) -> Respon
             placila_nas[kljuc] = UVOZ_PLACILA_STOLPCI_PRIVZETO.get(field, "")
 
     return templates.TemplateResponse(
+        request,
         "izvoz/uvoz.html",
         {
             "request": request,
@@ -889,6 +908,7 @@ async def uvozi_pregled(
 
     def _uvoz_err(napaka: str):
         return templates.TemplateResponse(
+            request,
             "izvoz/uvoz.html",
             {"request": request, "user": user, "is_admin": True,
              "napaka": napaka, "kljuci_uvoz": KLJUCI_UVOZ,
@@ -917,6 +937,7 @@ async def uvozi_pregled(
     request.session["_uvoz_uuid"] = uvoz_uuid
 
     return templates.TemplateResponse(
+        request,
         "izvoz/uvoz-pregled.html",
         {
             "request": request,
@@ -944,6 +965,7 @@ async def uvozi_potrdi(
 
     def _potrdi_err(napaka: str):
         return templates.TemplateResponse(
+            request,
             "izvoz/uvoz.html",
             {"request": request, "user": user, "is_admin": True,
              "napaka": napaka, "kljuci_uvoz": KLJUCI_UVOZ,
@@ -979,6 +1001,7 @@ async def uvozi_potrdi(
         request.session.pop("_uvoz_uuid", None)
 
     return templates.TemplateResponse(
+        request,
         "izvoz/uvoz.html",
         {
             "request": request,
@@ -1010,6 +1033,7 @@ async def uvozi_placila_pregled(
 
     def _placila_err(napaka: str):
         return templates.TemplateResponse(
+            request,
             "izvoz/uvoz.html",
             {"request": request, "user": user, "is_admin": True,
              "napaka_placila": napaka, "kljuci_uvoz": KLJUCI_UVOZ,
@@ -1038,6 +1062,7 @@ async def uvozi_placila_pregled(
     request.session["_placila_uuid"] = uvoz_uuid
 
     return templates.TemplateResponse(
+        request,
         "izvoz/uvoz-placila-pregled.html",
         {
             "request": request,
@@ -1065,6 +1090,7 @@ async def uvozi_placila_potrdi(
 
     def _potrdi_err(napaka: str):
         return templates.TemplateResponse(
+            request,
             "izvoz/uvoz.html",
             {"request": request, "user": user, "is_admin": True,
              "napaka_placila": napaka, "kljuci_uvoz": KLJUCI_UVOZ,
@@ -1100,6 +1126,7 @@ async def uvozi_placila_potrdi(
         request.session.pop("_placila_uuid", None)
 
     return templates.TemplateResponse(
+        request,
         "izvoz/uvoz.html",
         {
             "request": request,

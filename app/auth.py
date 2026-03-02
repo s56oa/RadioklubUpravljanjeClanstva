@@ -49,7 +49,7 @@ def require_role(request: Request, *vloge: str):
         return None, RedirectResponse(url="/login", status_code=302)
     if user.get("vloga") not in vloge:
         return None, templates.TemplateResponse(
-            "403.html", {"request": request, "user": user}, status_code=403
+            request, "403.html", {"request": request, "user": user}, status_code=403
         )
     return user, None
 

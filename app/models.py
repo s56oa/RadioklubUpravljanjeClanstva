@@ -23,6 +23,16 @@ TIPI_CLANSTVA_PRIVZETO = [
 
 OPERATERSKI_RAZREDI_PRIVZETO = ["A", "N", "A - CW", "N - CW"]
 
+VLOGE_CLANOV_PRIVZETO = [
+    "Predsednik",
+    "Tajnik",
+    "Blagajnik",
+    "Član UO",
+    "Predsednik NO",
+    "Član NO",
+    "Častni član",
+]
+
 VLOGE = ["admin", "urednik", "bralec"]
 
 
@@ -55,6 +65,8 @@ class Clan(Base):
     aktivnosti = relationship("Aktivnost", back_populates="clan", cascade="all, delete-orphan",
                               order_by="(Aktivnost.leto.desc(), Aktivnost.datum.desc())")
     skupine = relationship("Skupina", secondary=clan_skupina_table, back_populates="clani")
+    vloge = relationship("ClanVloga", back_populates="clan", cascade="all, delete-orphan",
+                         order_by="ClanVloga.datum_od.desc()")
 
 
 class Clanarina(Base):
@@ -146,3 +158,17 @@ class LoginPoizkus(Base):
     cas = Column(DateTime(timezone=True), nullable=False)
 
     __table_args__ = (Index("ix_login_poskusi_ip_cas", "ip", "cas"),)
+
+
+class ClanVloga(Base):
+    """Evidenca vlog in funkcij člana v klubu z zgodovino."""
+    __tablename__ = "clan_vloge"
+
+    id = Column(Integer, primary_key=True, index=True)
+    clan_id = Column(Integer, ForeignKey("clani.id"), nullable=False)
+    naziv = Column(String, nullable=False)
+    datum_od = Column(Date, nullable=False)
+    datum_do = Column(Date, nullable=True)
+    opombe = Column(String, nullable=True)
+
+    clan = relationship("Clan", back_populates="vloge")

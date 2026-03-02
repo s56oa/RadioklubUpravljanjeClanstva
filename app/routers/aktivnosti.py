@@ -40,6 +40,7 @@ async def seznam(
     ure_skupaj = round(sum(a.delovne_ure for a in aktivnosti if a.delovne_ure), 1)
 
     return templates.TemplateResponse(
+        request,
         "aktivnosti/seznam.html",
         {
             "request": request,
