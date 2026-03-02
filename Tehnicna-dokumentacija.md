@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.14 | Datum: 2026-02-27*
+*Različica 1.15 | Datum: 2026-03-02*
 
 ---
 
@@ -78,7 +78,7 @@ UpravljanjeClanstva/
 │   ├── config.py         – branje nastavitev iz baze
 │   ├── csrf.py           – CSRF token zaščita
 │   ├── audit_log.py      – log_akcija() helper
-│   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, …)
+│   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, vloge, …)
 │   ├── templates/        – Jinja2 HTML predloge (clani/, clanarine/, aktivnosti/, dashboard/, …)
 │   └── static/           – CSS, ikone
 ├── alembic/              – Alembic migracije
@@ -86,7 +86,9 @@ UpravljanjeClanstva/
 │   ├── script.py.mako
 │   └── versions/
 │       ├── 001_initial_schema.py   – vse tabele do v1.11
-│       └── 002_zaupljive_naprave.py
+│       ├── 002_zaupljive_naprave.py
+│       ├── 003_login_poskusi.py
+│       └── 004_clan_vloge.py
 ├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
 │   ├── clanstvo.db
 │   └── app.log           – rotating log (5 MB × 5)
@@ -820,15 +822,15 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.14.0` | `1.14.0`, `1.14`, `1`, `latest` |
+| Git tag `v1.15.0` | `1.15.0`, `1.15`, `1`, `latest` |
 
-> **Opomba:** `v1.14` (brez patch) ni veljaven semver in workflow bo zatajil.
-> Vedno uporabite obliko `v1.13.0`.
+> **Opomba:** `v1.15` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.15.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.14.0
-git push origin v1.14.0
+git tag v1.15.0
+git push origin v1.15.0
 ```
 
 ### Docker tag v `docker-compose.yml`
@@ -914,7 +916,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (46) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (62) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -950,6 +952,13 @@ clani
 │   ├── datum (Date, nullable)
 │   ├── opis (String 1000)
 │   └── delovne_ure (Float, nullable)
+│
+├── clan_vloge (1:N)               ← v1.15 (evidenca vlog z zgodovino)
+│   ├── clan_id (FK, CASCADE)
+│   ├── naziv (String)             ← npr. "Predsednik", "Tajnik"
+│   ├── datum_od (Date, NOT NULL)
+│   ├── datum_do (Date, nullable)  ← NULL = "brez poteka" (aktivna vloga)
+│   └── opombe (String, nullable)
 │
 └── skupine (M:N prek clan_skupina)
     ├── clan_id (FK)
@@ -1016,8 +1025,9 @@ alembic_command.upgrade(cfg, "head")
 | `001` | Vse tabele do v1.11 (clani, clanarine, aktivnosti, skupine, clan_skupina, uporabniki, nastavitve, audit_log) |
 | `002` | Nova tabela `zaupljive_naprave` (2FA "zapomni napravo") |
 | `003` | Nova tabela `login_poskusi` (persistentni rate limiting prijave) |
+| `004` | Nova tabela `clan_vloge` (evidenca vlog in funkcij člana z zgodovino) |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo samo `002` in `003`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`, `003` in `004`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 
@@ -1124,8 +1134,9 @@ pytest tests/ -v
 | `test_normalizacija.py` | _normaliziraj_clan (title case, KZ, email) | 6 |
 | `test_config.py` | get_nastavitev, get_seznam, get_tipi_clanstva | 4 |
 | `test_audit.py` | log_akcija, napaka ne propagira | 3 |
-| `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter | 17 |
-| **Skupaj** | | **46** |
+| `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka | 18 |
+| `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown | 15 |
+| **Skupaj** | | **62** |
 
 ### Testna infrastruktura
 
@@ -1138,4 +1149,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.14 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.15 + CI/CD*
