@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.15 | Datum: 2026-03-02*
+*Različica 1.16 | Datum: 2026-03-03*
 
 ---
 
@@ -822,15 +822,15 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.15.0` | `1.15.0`, `1.15`, `1`, `latest` |
+| Git tag `v1.16.0` | `1.16.0`, `1.16`, `1`, `latest` |
 
-> **Opomba:** `v1.15` (brez patch) ni veljaven semver in workflow bo zatajil.
-> Vedno uporabite obliko `v1.15.0`.
+> **Opomba:** `v1.16` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.16.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.15.0
-git push origin v1.15.0
+git tag v1.16.0
+git push origin v1.16.0
 ```
 
 ### Docker tag v `docker-compose.yml`
@@ -916,7 +916,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (62) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (77) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1136,7 +1136,8 @@ pytest tests/ -v
 | `test_audit.py` | log_akcija, napaka ne propagira | 3 |
 | `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka | 18 |
 | `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown | 15 |
-| **Skupaj** | | **62** |
+| `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
+| **Skupaj** | | **77** |
 
 ### Testna infrastruktura
 
@@ -1149,4 +1150,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.15 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.16 + CI/CD*

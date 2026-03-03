@@ -60,6 +60,7 @@
 | Neplačniki po izbranem letu | ✅ | v1.14 | Filter `leto_placila` na /clani; year selector z auto-submit; privzeto tekoče leto |
 | Statistični dashboard | ✅ | v1.14 | GET /dashboard; 6 stat kartic; Chart.js: plačila po letu (bar), tipi članstva (doughnut), delovne ure po letu (bar) |
 | Evidenca vlog in funkcij člana z zgodovino | ✅ | v1.15 | ClanVloga model; Alembic 004; kartica na /clani/{id}; dodaj (editor+), izbriši (admin); nastavljive vloge v nastavitvah; Backup Excel list "Vloge"; 15 testov |
+| UPN QR koda za plačilo | ✅ | v1.16 | ZBS standard (19 polj, ISO-8859-2, kontrolna vsota); SVG prikaz v modalnem oknu; PNG prenos ({es/id}_{leto}.png); spremenljivke {leto}/{id}/{es} v predlogah; privzeta koda namena OTHR; pillow v requirements; 15 testov |
 
 ---
 
@@ -93,10 +94,8 @@
 - **Predlog:** Pri uvozu samodejno prepoznaj vse stolpce z letnicami in uvozi vse hkrati.
 - **Obseg:** ~2 uri (dopolnitev obstoječe uvoz logike)
 
-#### 8. QR koda za plačilo
-- **Problem:** Ročno vnašanje podatkov za UPN plačilni nalog.
-- **Predlog:** Generiranje UPN QR kode za vsakega neplačanega člana (knjižnica `qrcode`).
-- **Obseg:** ~3 ure
+#### ~~8. QR koda za plačilo~~ ✅ Implementirano v v1.16
+*(UPN QR koda po ZBS standardu; SVG modal + PNG prenos; spremenljivke {leto}/{id}/{es}; segno + pillow)*
 
 ---
 
@@ -211,4 +210,4 @@ Primer:
 
 ---
 
-*Zadnja posodobitev: 2026-03-02 (v1.15)*
+*Zadnja posodobitev: 2026-03-03 (v1.16)*

@@ -26,7 +26,7 @@ from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus,
 from .auth import hash_geslo, preveri_geslo
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
-from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard, vloge
+from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard, vloge, upn
 
 logger = logging.getLogger(__name__)
 
@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.15"
-APP_RELEASE_DATE = "2026-03-02"
+APP_VERSION = "1.16"
+APP_RELEASE_DATE = "2026-03-03"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -54,6 +54,14 @@ PRIVZETE_NASTAVITVE = {
     "tipi_clanstva": ("\n".join(TIPI_CLANSTVA_PRIVZETO), "Tipi članstva (ena vrednost na vrstico)"),
     "operaterski_razredi": ("\n".join(OPERATERSKI_RAZREDI_PRIVZETO), "Operaterski razredi (ena vrednost na vrstico)"),
     "vloge_clanov": ("\n".join(VLOGE_CLANOV_PRIVZETO), "Vloge in funkcije članov (ena vrednost na vrstico)"),
+    "klub_iban": ("", "IBAN bančnega računa kluba (za UPN QR)"),
+    "upn_referenca_predloga": ("SI00 {id}-{leto}", "Predloga reference UPN QR – spremenljivke: {leto}, {id}, {es}"),
+    "upn_namen": ("OTHR", "Koda namena UPN QR (4 znaki, npr. OTHR)"),
+    "upn_opis_predloga": ("Članarina {leto}", "Predloga opisa UPN QR – spremenljivka: {leto}"),
+    "clanarina_zneski": (
+        "Osebni=25.00\nMladi=10.00\nDružinski=35.00\nSimpatizerji=15.00\nInvalid=10.00",
+        "Zneski članarine po tipu za UPN QR (Tip=Znesek, ena vrstica na tip)",
+    ),
 }
 
 _MAX_ATTEMPTS = 10        # max neuspešnih prijav
@@ -282,6 +290,7 @@ app.include_router(skupine.router)
 app.include_router(audit.router)
 app.include_router(dashboard.router)
 app.include_router(vloge.router)
+app.include_router(upn.router)
 
 
 # ---------------------------------------------------------------------------

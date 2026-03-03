@@ -26,3 +26,20 @@ def get_operaterski_razredi(db: Session) -> list:
 
 def get_vloge_clanov(db: Session) -> list:
     return get_seznam(db, "vloge_clanov", VLOGE_CLANOV_PRIVZETO)
+
+
+def get_clanarina_zneski(db: Session) -> dict:
+    """Vrne slovar {tip_clanstva: znesek_float} iz nastavitve 'clanarina_zneski'."""
+    n = db.query(Nastavitev).filter(Nastavitev.kljuc == "clanarina_zneski").first()
+    if not n or not n.vrednost:
+        return {}
+    result = {}
+    for vrstica in n.vrednost.splitlines():
+        vrstica = vrstica.strip()
+        if "=" in vrstica:
+            tip, zn_str = vrstica.split("=", 1)
+            try:
+                result[tip.strip()] = float(zn_str.strip())
+            except ValueError:
+                pass
+    return result

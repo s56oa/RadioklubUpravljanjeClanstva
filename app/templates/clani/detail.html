@@ -214,6 +214,7 @@
               <th>Datum plačila</th>
               <th>Znesek (€)</th>
               <th>Opomba</th>
+              <th class="text-center">QR</th>
               {% if is_editor %}<th class="text-center">Akcija</th>{% endif %}
             </tr>
           </thead>
@@ -233,6 +234,16 @@
               </td>
               <td>{{ c.znesek if c and c.znesek else '' }}</td>
               <td>{{ c.opombe if c and c.opombe else '' }}</td>
+              <td class="text-center">
+                <button type="button"
+                  class="btn btn-outline-secondary btn-sm py-0"
+                  data-bs-toggle="modal" data-bs-target="#modalUpnQr"
+                  data-qr-url="/upn/{{ clan.id }}/{{ leto }}"
+                  data-qr-info="{{ clan.priimek }} {{ clan.ime }} – {{ leto }}"
+                  title="UPN QR koda za leto {{ leto }}">
+                  <i class="bi bi-qr-code"></i>
+                </button>
+              </td>
               {% if is_editor %}
               <td class="text-center">
                 {% if c %}
@@ -478,6 +489,25 @@
     </div>
   </div>
 
+<!-- Modal UPN QR -->
+<div class="modal fade" id="modalUpnQr" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-qr-code me-2"></i>UPN QR koda</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <img id="upnQrImg" src="" alt="UPN QR" class="img-fluid" style="max-width:280px">
+        <div class="text-muted small mt-2" id="upnQrInfo"></div>
+        <a id="upnQrPngLink" href="#" class="btn btn-outline-secondary btn-sm mt-2" download>
+          <i class="bi bi-download me-1"></i>Prenesi PNG
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Modal brisanja -->
 {% if is_admin %}
 <div class="modal fade" id="modalIzbrisi" tabindex="-1">
@@ -522,6 +552,16 @@ document.querySelectorAll('input[name="filterPlacila"]').forEach(function(radio)
     if (this.id === 'fp-vsi') filterTabela('tabelaPlacil', 0);
     else if (this.id === 'fp-2')  filterTabela('tabelaPlacil', 2);
     else if (this.id === 'fp-10') filterTabela('tabelaPlacil', 10);
+  });
+});
+
+// UPN QR modal
+document.querySelectorAll('[data-qr-url]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var url = this.dataset.qrUrl;
+    document.getElementById('upnQrImg').src = url;
+    document.getElementById('upnQrInfo').textContent = this.dataset.qrInfo || '';
+    document.getElementById('upnQrPngLink').href = url + '/png';
   });
 });
 

@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.15 | Datum: 2026-03-02*
+*Različica 1.16 | Datum: 2026-03-03*
 
 ---
 
@@ -23,6 +23,7 @@
 15. [Moj profil, geslo in 2FA](#15-moj-profil-geslo-in-2fa)
 16. [Statistični dashboard](#16-statistični-dashboard)
 17. [Vloge in funkcije člana](#17-vloge-in-funkcije-člana)
+18. [UPN QR koda za plačilo](#18-upn-qr-koda-za-plačilo)
 
 ---
 
@@ -141,6 +142,7 @@ Kartica vsebuje:
 - **Evidenca plačil**: tabela plačil po letih z datumom, zneskom in opombami.
 - **Evidenca aktivnosti**: tabela aktivnosti po letih z opisom in delovnimi urami.
 - **Vloge in funkcije**: tabela vseh vlog z datumskim razponom in barvnimi značkami (zelena = aktivna, siva = pretekla).
+- **UPN QR koda**: za vsakega neplačanega člana gumb s QR kodo za takojšnje generiranje plačilnega naloga (glejte razdelek 18).
 
 ### Filter prikazanih let
 
@@ -568,4 +570,50 @@ Dostopno samo za admin. Kliknite gumb **Izbriši** (koš) ob vnosu. Brisanje je 
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.15 (2026-03-02)*
+## 18. UPN QR koda za plačilo
+
+Za vsakega neplačanega člana aplikacija omogoča generiranje **UPN QR kode** po ZBS standardu. QR kodo lahko skenira vsaka slovenska bančna mobilna aplikacija (NLB, SKB, Sparkasse, Delavska hranilnica …).
+
+### Kako odpreti QR kodo
+
+Na **seznamu članov** ali **kartici člana** kliknite gumb <kbd>⠿</kbd> (QR ikona) pri neplačanem članu:
+
+- Gumb je viden samo pri **neplačanih** članih za izbrano leto.
+- Odpre se modalno okno z UPN QR kodo, naslovna vrstica vsebuje priimek, ime in leto.
+
+### Vsebina QR kode
+
+QR koda vsebuje:
+
+| Polje | Vrednost |
+|-------|---------|
+| Plačnik | Priimek in ime člana, naslov (iz kartice člana) |
+| Prejemnik | Podatki kluba (iz Nastavitve) |
+| IBAN | IBAN kluba (iz Nastavitve) |
+| Referenca | Po predlogi v Nastavitvah (privzeto `SI00 {id}-{leto}`) |
+| Znesek | Po nastavljenem znesku za tip članstva (iz Nastavitve) |
+| Namen | Koda namena (privzeto `OTHR`) |
+| Opis | Po predlogi (privzeto `Članarina {leto}`) |
+
+### Prenos PNG
+
+Kliknite gumb **Prenesi PNG** v modalnem oknu, da prenesete QR kodo kot slikovni PNG za tiskanje ali pošiljanje po e-pošti.
+
+Ime prenesene datoteke je `{es_stevilka}_{leto}.png` (npr. `S59ABC_2026.png`) oziroma `{id}_{leto}.png` kadar ES-številka ni vnesena.
+
+### Nastavitve UPN QR
+
+Nastavitve za UPN QR kodo uredite v **Nastavitve → Nastavitve UPN QR kode**:
+
+| Nastavitev | Privzeto | Opis |
+|------------|---------|------|
+| IBAN kluba | — | IBAN bančnega računa; vnesite z ali brez presledkov |
+| Predloga reference | `SI00 {id}-{leto}` | Spremenljivke: `{leto}`, `{id}` (interna ID številka), `{es}` (ES-številka) |
+| Koda namena | `OTHR` | 4-znakovna koda po SEPA standardu |
+| Predloga opisa | `Članarina {leto}` | Spremenljivka: `{leto}` |
+
+> Znesek se samodejno vzame iz nastavitve **Zneski članarin** glede na tip članstva plačnika.
+
+---
+
+*Radio klub Člani – Upravljanje Članstva – različica 1.16 (2026-03-03)*

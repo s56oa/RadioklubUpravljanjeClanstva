@@ -150,6 +150,16 @@
                 <i class="bi bi-pencil"></i>
               </a>
               {% endif %}
+              {% if clan.id not in placali_ids %}
+              <button type="button"
+                class="btn btn-outline-dark btn-sm"
+                data-bs-toggle="modal" data-bs-target="#modalUpnQr"
+                data-qr-url="/upn/{{ clan.id }}/{{ leto }}"
+                data-qr-info="{{ clan.priimek }} {{ clan.ime }} – {{ leto }}"
+                title="UPN QR koda za {{ leto }}">
+                <i class="bi bi-qr-code"></i>
+              </button>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -161,10 +171,37 @@
     Skupaj: <strong>{{ clani|length }}</strong> članov
   </div>
 </div>
+<!-- Modal UPN QR -->
+<div class="modal fade" id="modalUpnQr" tabindex="-1">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-qr-code me-2"></i>UPN QR koda</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body text-center p-3">
+        <img id="upnQrImg" src="" alt="UPN QR" class="img-fluid" style="max-width:300px">
+        <div class="text-muted small mt-2" id="upnQrInfo"></div>
+        <a id="upnQrPngLink" href="#" class="btn btn-outline-secondary btn-sm mt-2" download>
+          <i class="bi bi-download me-1"></i>Prenesi PNG
+        </a>
+      </div>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block scripts %}
 <script>
+document.querySelectorAll('[data-qr-url]').forEach(function(btn) {
+  btn.addEventListener('click', function() {
+    var url = this.dataset.qrUrl;
+    document.getElementById('upnQrImg').src = url;
+    document.getElementById('upnQrInfo').textContent = this.dataset.qrInfo || '';
+    document.getElementById('upnQrPngLink').href = url + '/png';
+  });
+});
+
 $(document).ready(function() {
   $('#tabela-clanov').DataTable({
     responsive: true,

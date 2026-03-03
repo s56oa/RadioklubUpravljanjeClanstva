@@ -60,6 +60,32 @@
     </div>
   </div>
 
+  <!-- UPN QR nastavitve -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-dark text-white">
+        <i class="bi bi-qr-code me-2"></i>Nastavitve UPN QR kode
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Nastavitve za generiranje UPN plačilnega naloga. IBAN vnesite brez presledkov ali s presledki (aplikacija jih samodejno odstrani).
+          Spremenljivke v predlogah: <code>{leto}</code> = leto plačila, <code>{id}</code> = interna ID številka člana, <code>{es}</code> = ES-številka člana.
+        </p>
+        <div class="row g-3">
+          {% for kljuc, opis in kljuci_upn %}
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ opis }}</label>
+            <input type="text" name="{{ kljuc }}" class="form-control"
+              value="{{ nas.get(kljuc, '') }}"
+              placeholder="{% if kljuc == 'upn_referenca_predloga' %}SI00 {id}-{leto}{% elif kljuc == 'upn_namen' %}OTHR{% elif kljuc == 'upn_opis_predloga' %}Članarina {leto}{% endif %}">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="col-12">
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-save me-1"></i>Shrani nastavitve

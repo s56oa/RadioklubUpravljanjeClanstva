@@ -1,13 +1,13 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-02-27 (v1.14)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-03 (v1.16)*
 
 ---
 
 ## Povzetek
 
 Aplikacija je primarna za uporabo v zaupljivem lokalnem okolju (radioklub, domače omrežje, VPN).
-Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
+Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR (preprečitev razkritja podatkov) in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
 
 ---
 
@@ -36,6 +36,8 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Zaupljive naprave (SHA-256 hashed token, 30-dnevni httponly cookie) | ✅ | v1.12 |
 | IP resolving prek X-Forwarded-For (ProxyHeadersMiddleware) | ✅ | v1.12 |
 | Audit log za 2FA in zaupljive naprave | ✅ | v1.12 |
+| UPN QR debug endpoint odstranjen (preprečitev razkritja podatkov) | ✅ | v1.16 |
+| HTTP Content-Disposition ASCII-safe filename (preprečitev header injection) | ✅ | v1.16 |
 | XSS – Jinja2 auto-escape (`\| safe` samo za interni SVG QR) | ✅ | v1.0 |
 | SQL injection – SQLAlchemy ORM, parameterized queries | ✅ | v1.0 |
 | Persistentni rate limiting (SQLite `login_poskusi`) | ✅ | v1.13 |
@@ -187,6 +189,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.12 | Opcijska TOTP 2FA (pyotp, RFC 6238); skrivnost shranjena šele po verifikaciji; rate limiting reuse; zaupljive naprave (SHA-256 token, 30 dni); ProxyHeadersMiddleware (pravilni IP v audit logu) |
 | v1.13 | Persistentni rate limiting (SQLite); ContentSizeLimitMiddleware (1 MB); InactivityTimeoutMiddleware (30 min); validacija `vloga`; začasno geslo ustreza politiki (16 znakov + posebni) |
 | v1.14 | Brez novih varnostnih tveganj; nov /aktivnosti, /clanarine, /dashboard – samo GET, require_login, ORM queries, Jinja2 autoescaping, tojson za Chart.js podatke |
+| v1.16 | Odstranjen `/upn/{id}/{leto}/debug` endpoint (razkritje plačilnih podatkov vsem prijavljenim); odpravljena ranljivost `UnicodeEncodeError` → HTTP 500 pri non-ASCII znakih v `Content-Disposition` headerju (ime/priimek člana s šumniki) |
 
 ---
 

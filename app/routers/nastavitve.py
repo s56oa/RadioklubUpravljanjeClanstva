@@ -21,6 +21,7 @@ KLJUCI_KLUB = [
     ("klub_naslov", "Naslov (ulica in hišna številka)"),
     ("klub_posta", "Poštna številka in kraj"),
     ("klub_email", "E-poštni naslov kluba"),
+    ("klub_iban", "IBAN bančnega računa (za UPN QR)"),
 ]
 
 # Polja ki so seznami (ena vrednost na vrstico)
@@ -28,6 +29,15 @@ KLJUCI_SEZNAM = [
     ("tipi_clanstva", "Tipi članstva", TIPI_CLANSTVA_PRIVZETO),
     ("operaterski_razredi", "Operaterski razredi", OPERATERSKI_RAZREDI_PRIVZETO),
     ("vloge_clanov", "Vloge in funkcije članov", VLOGE_CLANOV_PRIVZETO),
+    ("clanarina_zneski", "Zneski članarine za UPN QR (Tip=Znesek, ena vrstica na tip)",
+     ["Osebni=25.00", "Mladi=10.00", "Družinski=35.00", "Simpatizerji=15.00", "Invalid=10.00"]),
+]
+
+# UPN QR predloge
+KLJUCI_UPN = [
+    ("upn_referenca_predloga", "Predloga reference (spremenljivke: {leto}, {es})"),
+    ("upn_namen", "Koda namena (4 znaki, npr. MEMB)"),
+    ("upn_opis_predloga", "Predloga opisa plačila (spremenljivka: {leto})"),
 ]
 
 
@@ -46,6 +56,16 @@ async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> R
         if kljuc not in nas or not nas[kljuc]:
             nas[kljuc] = "\n".join(privzeto)
 
+    # UPN predloge – privzete vrednosti
+    upn_privzeto = {
+        "upn_referenca_predloga": "SI00 5-{leto}",
+        "upn_namen": "MEMB",
+        "upn_opis_predloga": "Članarina {leto}",
+    }
+    for k, v in upn_privzeto.items():
+        if k not in nas or not nas[k]:
+            nas[k] = v
+
     return templates.TemplateResponse(
         request,
         "nastavitve/index.html",
@@ -55,6 +75,7 @@ async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> R
             "nas": nas,
             "kljuci_klub": KLJUCI_KLUB,
             "kljuci_seznam": KLJUCI_SEZNAM,
+            "kljuci_upn": KLJUCI_UPN,
             "is_admin": True,
             "shranjen": request.query_params.get("shranjen") == "1",
         },
@@ -71,7 +92,7 @@ async def nastavitve_shrani(request: Request, db: Session = Depends(get_db), _cs
 
     form = await request.form()
 
-    vse_kljuce = [k for k, _ in KLJUCI_KLUB] + [k for k, _, _ in KLJUCI_SEZNAM]
+    vse_kljuce = [k for k, _ in KLJUCI_KLUB] + [k for k, _, _ in KLJUCI_SEZNAM] + [k for k, _ in KLJUCI_UPN]
     for kljuc in vse_kljuce:
         vrednost = str(form.get(kljuc, "")).strip()
         n = db.query(Nastavitev).filter(Nastavitev.kljuc == kljuc).first()
