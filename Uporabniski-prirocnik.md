@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.16 | Datum: 2026-03-03*
+*Različica 1.17 | Datum: 2026-03-03*
 
 ---
 
@@ -24,6 +24,7 @@
 16. [Statistični dashboard](#16-statistični-dashboard)
 17. [Vloge in funkcije člana](#17-vloge-in-funkcije-člana)
 18. [UPN QR koda za plačilo](#18-upn-qr-koda-za-plačilo)
+19. [E-poštna obvestila](#19-e-poštna-obvestila)
 
 ---
 
@@ -37,6 +38,7 @@ Aplikacija za upravljanje članstva radiokluba omogoča:
 - vodenje zgodovine vlog in funkcij člana (predsednik, tajnik, blagajnik …),
 - razvrščanje članov v interesne skupine,
 - uvoz obstoječih podatkov iz Excel datoteke in izvoz za prijavo na ZRS (Zveza radioamaterjev Slovenije),
+- pošiljanje personaliziranih e-poštnih pozivov k plačilu z embedded UPN QR kodo,
 - varno upravljanje z vlogami: vsak uporabnik vidi ali ureja samo tisto, do česar je pooblaščen.
 
 Aplikacija deluje v brskalniku. Ne zahteva namestitve posebne programske opreme na računalnik.
@@ -45,13 +47,13 @@ Aplikacija deluje v brskalniku. Ne zahteva namestitve posebne programske opreme 
 
 ## 2. Vloge in pravice
 
-| Vloga | Ogled | Urejanje | Brisanje | Uvoz/Izvoz | Nastavitve | Uporabniki | Audit log |
-|-------|-------|----------|----------|------------|------------|------------|-----------|
-| **admin** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **urednik** | ✅ | ✅ | ❌ | ✅ (samo izvoz) | ❌ | ❌ | ❌ |
-| **bralec** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Vloga | Ogled | Urejanje | Brisanje | Uvoz/Izvoz | Obvestila | Nastavitve | Uporabniki | Audit log |
+|-------|-------|----------|----------|------------|-----------|------------|------------|-----------|
+| **admin** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **urednik** | ✅ | ✅ | ❌ | ✅ (samo izvoz) | ✅ | ❌ | ❌ | ❌ |
+| **bralec** | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
 
-> **Opomba:** Urednik lahko dodaja in ureja člane ter beleži plačila in aktivnosti, ne more pa brisati članov, upravljati s skupinami ali dostopati do sistemskih nastavitev.
+> **Opomba:** Urednik lahko dodaja in ureja člane, beleži plačila in aktivnosti ter pošilja e-poštna obvestila. Ne more brisati članov, upravljati s skupinami ali dostopati do sistemskih nastavitev.
 
 ---
 
@@ -110,6 +112,8 @@ Po prijavi se odpre seznam vseh članov kluba.
 - **Leto čl.** (spustni seznam): izberite leto za prikaz stanja plačila članarine. Privzeto je tekoče leto. Ob spremembi leta se seznam samodejno osveži.
 - **Stanje čl.**: filtrirajte po plačanem/neplačanem statusu za izbrano leto.
 
+Ko je aktiven filter **Neplačano**, se pod filtri prikaže gumb **Pošlji poziv vsem neplačnikom** (samo urednik in admin). Klik odpre formo za pošiljanje e-poštnih pozivov vsem prikazanim neplačnikom hkrati (glejte razdelek 19).
+
 ### Stolpci tabele
 
 | Stolpec | Opis |
@@ -143,6 +147,8 @@ Kartica vsebuje:
 - **Evidenca aktivnosti**: tabela aktivnosti po letih z opisom in delovnimi urami.
 - **Vloge in funkcije**: tabela vseh vlog z datumskim razponom in barvnimi značkami (zelena = aktivna, siva = pretekla).
 - **UPN QR koda**: za vsakega neplačanega člana gumb s QR kodo za takojšnje generiranje plačilnega naloga (glejte razdelek 18).
+
+Če ima član vpisano e-poštno naslov, se poleg gumba Uredi prikaže gumb **Pošlji obvestilo** (samo urednik in admin), ki odpre formo za pošiljanje personaliziranega poziva (glejte razdelek 19).
 
 ### Filter prikazanih let
 
@@ -380,6 +386,25 @@ Prilagodite sezname vrednosti, ki se pojavljajo v spustnih menijih pri vnosu in 
 
 **Privzete vloge članov:** Predsednik, Tajnik, Blagajnik, Član UO, Predsednik NO, Član NO, Častni član
 
+### Nastavitve UPN QR in zneski članarin
+
+V sekciji **Nastavitve UPN QR kode** nastavite IBAN, predloge za referenco in opis. V polju *Zneski članarine* vpišite znesek za vsak tip v obliki `Tip=Znesek` (ena vrednost na vrstico).
+
+### Nastavitve e-pošte (SMTP)
+
+Za pošiljanje e-poštnih obvestil iz aplikacije vnesite podatke SMTP strežnika:
+
+| Polje | Opis |
+|-------|------|
+| SMTP strežnik | Naslov strežnika, npr. `smtp.gmail.com` |
+| SMTP vrata | `587` = STARTTLS (priporočeno), `465` = SSL, `25` = brez šifriranja |
+| SMTP način | `starttls` / `ssl` / `plain` |
+| Uporabniško ime | E-poštni naslov ali aplikacijsko geslo |
+| SMTP geslo | Geslo za SMTP avtentikacijo |
+| Pošiljatelj | Naslov Od (npr. `klub@s59dgo.org`) |
+
+> Za Gmail in podobne storitve ustvarite **geslo za aplikacijo** (Application Password) v varnostnih nastavitvah računa, saj navadna gesla pogosto ne delujejo.
+
 Spremembe uveljavite s klikom **Shrani nastavitve**.
 
 ---
@@ -616,4 +641,69 @@ Nastavitve za UPN QR kodo uredite v **Nastavitve → Nastavitve UPN QR kode**:
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.16 (2026-03-03)*
+## 19. E-poštna obvestila
+
+Dostopno za urednike in admin: navigacija → **Obvestila**.
+
+Funkcija omogoča pošiljanje personaliziranih e-poštnih pozivov k plačilu članarine. Vsak prejemnik dobi svojo **UPN QR kodo** za plačilo, embedded neposredno v e-pošto.
+
+> **Predpogoj:** V **Nastavitve → E-pošta (SMTP)** mora biti nastavljeni SMTP strežnik.
+
+### Predloge
+
+Aplikacija ob zagonu ustvari dve privzeti predlogi:
+- **Poziv k plačilu članarine** – prijazno besedilo za prve pozive
+- **Opomnik za zamudnike** – odločnejše besedilo za zamudnike
+
+Privzetih predlog ni mogoče izbrisati; urediti jih je mogoče.
+
+### Upravljanje predlog
+
+Na strani *Obvestila* so prikazane vse predloge s tipom (Privzeta / Lastna).
+
+- **Nova predloga** – gumb zgoraj desno; izpolnite naziv, zadevo in HTML vsebino.
+- **Uredi** – uredite vsebino obstoječe predloge.
+- **Izbriši** – možno samo za lastne (neprivzete) predloge.
+
+#### Spremenljivke v predlogah
+
+V zadevi in telesu e-pošte so na voljo Jinja2 spremenljivke, ki se ob pošiljanju nadomestijo z dejanskimi podatki:
+
+| Spremenljivka | Vrednost |
+|--------------|---------|
+| `{{ ime }}` | Ime prejemnika |
+| `{{ priimek }}` | Priimek prejemnika |
+| `{{ klicni_znak }}` | Klicni znak prejemnika (prazen niz, če ni vnesen) |
+| `{{ leto }}` | Leto za katero se pošilja poziv |
+| `{{ qr_koda }}` | HTML `<img>` tag z UPN QR kodo (base64 PNG, 200 px) |
+
+### Pošiljanje obvestila
+
+Kliknite **Pošlji obvestilo** v navigacijski vrstici ali pri posameznem članu/na seznamu neplačnikov.
+
+1. **Izberite predlogo** – zadeva in telo se samodejno prednapolnita.
+2. **Izberite leto** – za QR kodo in morebitni filter neplačnikov.
+3. **Uredite zadevo in telo** – po potrebi prilagodite besedilo.
+4. **Izberite prejemnika:**
+   - **Posameznik** – vnesite ID člana (ali kliknete gumb iz kartice člana)
+   - **Bulk (vsi neplačniki)** – pošlje e-pošto vsem aktivnim članom, ki za izbrano leto še niso plačali
+5. Kliknite **Pošlji**.
+
+Po pošiljanju se prikaže stran z rezultatom: število poslanih sporočil in število preskočenih (člani brez vpisanega e-poštnega naslova).
+
+### Preskočeni prejemniki
+
+E-pošta se ne pošlje, če:
+- član nima vpisanega e-poštnega naslova (`E-pošta` v kartici člana), ali
+- SMTP strežnik ni konfiguriran.
+
+Dopolnite e-poštne naslove v kartici člana: **Uredi → E-pošta**.
+
+### Hitri dostop
+
+- **Kartica člana:** gumb **Pošlji obvestilo** (viden samo, če ima član vpisan e-naslov)
+- **Seznam članov (filter Neplačano):** gumb **Pošlji poziv vsem neplačnikom (leto)**
+
+---
+
+*Radio klub Člani – Upravljanje Članstva – različica 1.17 (2026-03-03)*

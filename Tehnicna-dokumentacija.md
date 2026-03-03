@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.16 | Datum: 2026-03-03*
+*Različica 1.17 | Datum: 2026-03-03*
 
 ---
 
@@ -63,6 +63,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 | Migracije | Alembic | 1.13+ |
 | Logging | RotatingFileHandler → data/app.log (5 MB × 5) | — |
 | Kontekst kluba | KlubContextMiddleware → request.state | — |
+| E-pošta | smtplib (stdlib) + Jinja2 render + base64 PNG embed | — |
 | Frontend | Bootstrap 5.3 + DataTables + Bootstrap Icons + Chart.js | CDN |
 | Excel | openpyxl | 3.1 |
 
@@ -73,13 +74,16 @@ UpravljanjeClanstva/
 ├── app/
 │   ├── main.py           – FastAPI app, middleware, login/logout/2FA, _run_migrations(), _nastavi_logging()
 │   ├── database.py       – SQLite engine, get_db()
-│   ├── models.py         – SQLAlchemy modeli (vključno ZaupljivaNaprava)
+│   ├── models.py         – SQLAlchemy modeli (vključno ZaupljivaNaprava, EmailPredloga)
 │   ├── auth.py           – gesla, vloge, zaščita endpointov
 │   ├── config.py         – branje nastavitev iz baze
 │   ├── csrf.py           – CSRF token zaščita
 │   ├── audit_log.py      – log_akcija() helper
-│   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, vloge, …)
-│   ├── templates/        – Jinja2 HTML predloge (clani/, clanarine/, aktivnosti/, dashboard/, …)
+│   ├── upn.py            – UPN QR generiranje (ZBS standard, segno)
+│   ├── email.py          – SMTP pošiljanje, UPN QR base64 embed, Jinja2 render predlog
+│   ├── email_predloge_seed.py – seed 2 privzeti predlogi ob zagonu
+│   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, vloge, upn, obvestila, …)
+│   ├── templates/        – Jinja2 HTML predloge (clani/, clanarine/, aktivnosti/, dashboard/, obvestila/, …)
 │   └── static/           – CSS, ikone
 ├── alembic/              – Alembic migracije
 │   ├── env.py
@@ -88,7 +92,8 @@ UpravljanjeClanstva/
 │       ├── 001_initial_schema.py   – vse tabele do v1.11
 │       ├── 002_zaupljive_naprave.py
 │       ├── 003_login_poskusi.py
-│       └── 004_clan_vloge.py
+│       ├── 004_clan_vloge.py
+│       └── 005_email_predloge.py
 ├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
 │   ├── clanstvo.db
 │   └── app.log           – rotating log (5 MB × 5)
@@ -822,15 +827,15 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.16.0` | `1.16.0`, `1.16`, `1`, `latest` |
+| Git tag `v1.17.0` | `1.17.0`, `1.17`, `1`, `latest` |
 
-> **Opomba:** `v1.16` (brez patch) ni veljaven semver in workflow bo zatajil.
-> Vedno uporabite obliko `v1.16.0`.
+> **Opomba:** `v1.17` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.17.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.16.0
-git push origin v1.16.0
+git tag v1.17.0
+git push origin v1.17.0
 ```
 
 ### Docker tag v `docker-compose.yml`
@@ -916,7 +921,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (77) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (88) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -961,6 +966,14 @@ clani
 │   └── opombe (String, nullable)
 │
 └── skupine (M:N prek clan_skupina)
+
+email_predloge                      ← v1.17 (predloge za e-poštna obvestila)
+├── id (PK, indexed)
+├── naziv (String)                  ← ime predloge
+├── zadeva (String)                 ← zadeva e-pošte (Jinja2 spremenljivke)
+├── telo_html (Text)                ← HTML telo (Jinja2: ime, priimek, leto, qr_koda)
+├── je_privzeta (Bool)              ← privzete predloge ni mogoče izbrisati
+└── created_at (DateTime)
     ├── clan_id (FK)
     └── skupina_id (FK)
 
@@ -1026,8 +1039,9 @@ alembic_command.upgrade(cfg, "head")
 | `002` | Nova tabela `zaupljive_naprave` (2FA "zapomni napravo") |
 | `003` | Nova tabela `login_poskusi` (persistentni rate limiting prijave) |
 | `004` | Nova tabela `clan_vloge` (evidenca vlog in funkcij člana z zgodovino) |
+| `005` | Nova tabela `email_predloge` (predloge za e-poštna obvestila) |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`, `003` in `004`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`005`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 
@@ -1105,6 +1119,7 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | Iztok seje ob neaktivnosti (30 min, `InactivityTimeoutMiddleware`) | v1.13 |
 | Validacija vloge na dovoljene vrednosti pri urejanju uporabnikov | v1.13 |
 | Začasno geslo ustreza politiki (16 znakov + posebni znaki) | v1.13 |
+| SMTP geslo shranjeno v bazi (nastavitve); priporočamo geslo za aplikacijo | v1.17 |
 
 ### Varnostno vzdrževanje
 
@@ -1137,7 +1152,8 @@ pytest tests/ -v
 | `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka | 18 |
 | `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown | 15 |
 | `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
-| **Skupaj** | | **77** |
+| `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk, brez SMTP (mock smtplib) | 11 |
+| **Skupaj** | | **88** |
 
 ### Testna infrastruktura
 
@@ -1150,4 +1166,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.16 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.17 + CI/CD*
