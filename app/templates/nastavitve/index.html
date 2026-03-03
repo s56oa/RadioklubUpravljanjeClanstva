@@ -86,6 +86,33 @@
     </div>
   </div>
 
+  <!-- E-pošta (SMTP) -->
+  <div class="col-12">
+    <div class="card">
+      <div class="card-header bg-info text-white">
+        <i class="bi bi-envelope-fill me-2"></i>E-pošta (SMTP)
+      </div>
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          Nastavitve za pošiljanje e-poštnih obvestil iz aplikacije. Geslo se shrani v bazo – priporočamo ločen račun z geslo za aplikacijo.
+        </p>
+        <div class="row g-3">
+          {% for kljuc, opis in kljuci_smtp %}
+          <div class="col-md-4">
+            <label class="form-label fw-semibold">{{ opis }}</label>
+            <input type="{% if kljuc == 'smtp_geslo' %}password{% else %}text{% endif %}"
+              name="{{ kljuc }}" class="form-control"
+              value="{{ nas.get(kljuc, '') }}"
+              autocomplete="{% if kljuc == 'smtp_geslo' %}new-password{% else %}off{% endif %}"
+              placeholder="{% if kljuc == 'smtp_port' %}587{% elif kljuc == 'smtp_nacin' %}starttls{% endif %}">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="col-12">
     <button type="submit" class="btn btn-primary">
       <i class="bi bi-save me-1"></i>Shrani nastavitve

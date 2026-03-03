@@ -68,6 +68,13 @@
         </button>
       </div>
     </form>
+    {% if is_editor and placal == 'ne' %}
+    <div class="mt-2 pt-2 border-top">
+      <a href="/obvestila/posli?clan_id=&leto={{ leto }}" class="btn btn-outline-primary btn-sm">
+        <i class="bi bi-envelope me-1"></i>Pošlji poziv vsem neplačnikom ({{ leto }})
+      </a>
+    </div>
+    {% endif %}
   </div>
 </div>
 

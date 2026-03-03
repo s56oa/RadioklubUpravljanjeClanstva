@@ -14,6 +14,11 @@
     <a href="/clani/{{ clan.id }}/uredi" class="btn btn-outline-primary btn-sm">
       <i class="bi bi-pencil me-1"></i>Uredi
     </a>
+    {% if clan.elektronska_posta and '@' in clan.elektronska_posta %}
+    <a href="/obvestila/posli?clan_id={{ clan.id }}" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-envelope me-1"></i>Pošlji obvestilo
+    </a>
+    {% endif %}
     {% endif %}
     {% if is_admin %}
     <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIzbrisi">

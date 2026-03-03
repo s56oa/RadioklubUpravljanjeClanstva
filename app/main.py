@@ -26,7 +26,8 @@ from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus,
 from .auth import hash_geslo, preveri_geslo
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
-from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard, vloge, upn
+from .email_predloge_seed import seed_predloge
+from .routers import clani, clanarine, izvoz, uporabniki, nastavitve, profil, aktivnosti, skupine, audit, dashboard, vloge, upn, obvestila as obvestila_router
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +35,7 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.16"
+APP_VERSION = "1.17"
 APP_RELEASE_DATE = "2026-03-03"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
@@ -62,6 +63,12 @@ PRIVZETE_NASTAVITVE = {
         "Osebni=25.00\nMladi=10.00\nDružinski=35.00\nSimpatizerji=15.00\nInvalid=10.00",
         "Zneski članarine po tipu za UPN QR (Tip=Znesek, ena vrstica na tip)",
     ),
+    "smtp_host": ("", "SMTP strežnik"),
+    "smtp_port": ("587", "SMTP vrata"),
+    "smtp_nacin": ("starttls", "SMTP način"),
+    "smtp_uporabnik": ("", "SMTP uporabniško ime"),
+    "smtp_geslo": ("", "SMTP geslo"),
+    "smtp_od": ("", "Naslov pošiljatelja"),
 }
 
 _MAX_ATTEMPTS = 10        # max neuspešnih prijav
@@ -243,6 +250,8 @@ async def lifespan(app: FastAPI):
                 env_vrednost = os.getenv(kljuc.upper(), vrednost_env)
                 db.add(Nastavitev(kljuc=kljuc, vrednost=env_vrednost, opis=opis))
         db.commit()
+
+        seed_predloge(db)
     finally:
         db.close()
     yield
@@ -291,6 +300,7 @@ app.include_router(audit.router)
 app.include_router(dashboard.router)
 app.include_router(vloge.router)
 app.include_router(upn.router)
+app.include_router(obvestila_router.router)
 
 
 # ---------------------------------------------------------------------------

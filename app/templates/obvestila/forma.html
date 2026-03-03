@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}{{ naslov }} – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/obvestila">Obvestila</a></li>
+      <li class="breadcrumb-item active">{{ naslov }}</li>
+    </ol>
+  </nav>
+</div>
+
+<div class="card">
+  <div class="card-header bg-primary text-white">
+    <i class="bi bi-envelope-fill me-2"></i>{{ naslov }}
+  </div>
+  <div class="card-body">
+    <form method="post" action="{{ action }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Naziv predloge</label>
+        <input type="text" name="naziv" class="form-control" required
+          value="{{ predloga.naziv if predloga else '' }}"
+          placeholder="npr. Poziv k plačilu članarine">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Zadeva e-pošte</label>
+        <input type="text" name="zadeva" class="form-control" required
+          value="{{ predloga.zadeva if predloga else '' }}"
+          placeholder="npr. Poziv k plačilu članarine za leto {{ '{{' }} leto {{ '}}' }}">
+        <div class="form-text">
+          Spremenljivke: <code>&#123;&#123; leto &#125;&#125;</code>, <code>&#123;&#123; ime &#125;&#125;</code>, <code>&#123;&#123; priimek &#125;&#125;</code>, <code>&#123;&#123; klicni_znak &#125;&#125;</code>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Telo sporočila (HTML)</label>
+        <textarea name="telo_html" class="form-control font-monospace" rows="16" required
+          placeholder="HTML vsebina e-pošte...">{{ predloga.telo_html if predloga else '' }}</textarea>
+        <div class="form-text">
+          Spremenljivke: <code>&#123;&#123; ime &#125;&#125;</code>, <code>&#123;&#123; priimek &#125;&#125;</code>, <code>&#123;&#123; klicni_znak &#125;&#125;</code>, <code>&#123;&#123; leto &#125;&#125;</code>,
+          <code>&#123;&#123; qr_koda &#125;&#125;</code> (UPN QR slika)
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-save me-1"></i>Shrani
+        </button>
+        <a href="/obvestila" class="btn btn-outline-secondary">
+          <i class="bi bi-x me-1"></i>Prekliči
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

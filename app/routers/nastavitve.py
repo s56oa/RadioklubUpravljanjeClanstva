@@ -40,6 +40,16 @@ KLJUCI_UPN = [
     ("upn_opis_predloga", "Predloga opisa plačila (spremenljivka: {leto})"),
 ]
 
+# SMTP nastavitve za e-poštno pošiljanje
+KLJUCI_SMTP = [
+    ("smtp_host", "SMTP strežnik (npr. smtp.gmail.com)"),
+    ("smtp_port", "SMTP vrata (587 = STARTTLS, 465 = SSL, 25 = plain)"),
+    ("smtp_nacin", "SMTP način (starttls / ssl / plain)"),
+    ("smtp_uporabnik", "SMTP uporabniško ime"),
+    ("smtp_geslo", "SMTP geslo"),
+    ("smtp_od", "Pošiljatelj (npr. klub@s59dgo.org)"),
+]
+
 
 @router.get("", response_class=HTMLResponse)
 async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> Response:
@@ -76,6 +86,7 @@ async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> R
             "kljuci_klub": KLJUCI_KLUB,
             "kljuci_seznam": KLJUCI_SEZNAM,
             "kljuci_upn": KLJUCI_UPN,
+            "kljuci_smtp": KLJUCI_SMTP,
             "is_admin": True,
             "shranjen": request.query_params.get("shranjen") == "1",
         },
@@ -92,7 +103,7 @@ async def nastavitve_shrani(request: Request, db: Session = Depends(get_db), _cs
 
     form = await request.form()
 
-    vse_kljuce = [k for k, _ in KLJUCI_KLUB] + [k for k, _, _ in KLJUCI_SEZNAM] + [k for k, _ in KLJUCI_UPN]
+    vse_kljuce = [k for k, _ in KLJUCI_KLUB] + [k for k, _, _ in KLJUCI_SEZNAM] + [k for k, _ in KLJUCI_UPN] + [k for k, _ in KLJUCI_SMTP]
     for kljuc in vse_kljuce:
         vrednost = str(form.get(kljuc, "")).strip()
         n = db.query(Nastavitev).filter(Nastavitev.kljuc == kljuc).first()

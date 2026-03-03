@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% block title %}Pošlji obvestilo – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/obvestila">Obvestila</a></li>
+      <li class="breadcrumb-item active">Pošlji obvestilo</li>
+    </ol>
+  </nav>
+</div>
+
+{% if flash %}
+<div class="alert alert-{{ flash_tip }} alert-dismissible fade show">
+  <i class="bi bi-exclamation-triangle me-2"></i>{{ flash }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="card-header bg-primary text-white">
+    <i class="bi bi-send me-2"></i>Pošlji e-poštno obvestilo
+  </div>
+  <div class="card-body">
+    <form method="post" action="/obvestila/posli" id="posliForma">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label fw-semibold">Predloga</label>
+          <select name="predloga_id" class="form-select" id="selPredloga" required>
+            <option value="">– Izberi predlogo –</option>
+            {% for p in predloge %}
+            <option value="{{ p.id }}"
+              data-zadeva="{{ p.zadeva }}"
+              data-telo="{{ p.telo_html }}">{{ p.naziv }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label fw-semibold">Leto (za QR kodo in filter)</label>
+          <input type="number" name="leto" id="inpLeto" class="form-control"
+            value="{{ leto_zdaj }}" min="2010" max="2040" required>
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Zadeva</label>
+        <input type="text" name="zadeva" id="inpZadeva" class="form-control" required
+          placeholder="Zadeva e-pošte...">
+      </div>
+
+      <div class="mb-3">
+        <label class="form-label fw-semibold">Telo sporočila (HTML)</label>
+        <textarea name="telo_html" id="inpTelo" class="form-control font-monospace" rows="12" required
+          placeholder="HTML vsebina..."></textarea>
+      </div>
+
+      <!-- Prejemnik -->
+      <div class="card bg-light mb-3">
+        <div class="card-body">
+          <p class="fw-semibold mb-2">Prejemnik</p>
+          <div class="form-check mb-2">
+            <input class="form-check-input" type="radio" name="_nacin" id="rPosam" value="posameznik"
+              {% if izbran_clan %}checked{% endif %}>
+            <label class="form-check-label" for="rPosam">Posameznik</label>
+          </div>
+          <div id="divPosam" class="mb-3 {% if not izbran_clan %}d-none{% endif %}">
+            <label class="form-label small mb-1">ID ali ime člana</label>
+            <input type="text" id="inpClanSearch" class="form-control form-control-sm"
+              placeholder="Vnesite ID ali del imena..."
+              value="{% if izbran_clan %}{{ izbran_clan.priimek }} {{ izbran_clan.ime }}{% endif %}">
+            <input type="hidden" name="clan_id" id="inpClanId"
+              value="{% if izbran_clan %}{{ izbran_clan.id }}{% endif %}">
+            {% if izbran_clan %}
+            <div class="form-text">
+              <i class="bi bi-person me-1"></i>{{ izbran_clan.priimek }} {{ izbran_clan.ime }}
+              {% if izbran_clan.elektronska_posta %}
+              – <a href="mailto:{{ izbran_clan.elektronska_posta }}">{{ izbran_clan.elektronska_posta }}</a>
+              {% else %}
+              – <span class="text-danger">Ni e-pošte!</span>
+              {% endif %}
+            </div>
+            {% endif %}
+          </div>
+          <div class="form-check">
+            <input class="form-check-input" type="radio" name="_nacin" id="rBulk" value="bulk"
+              {% if not izbran_clan %}checked{% endif %}>
+            <label class="form-check-label" for="rBulk">
+              Vsi aktivni neplačniki za izbrano leto
+              <span class="badge bg-warning text-dark ms-1">bulk</span>
+            </label>
+          </div>
+          <div id="divBulk" class="mt-2 {% if izbran_clan %}d-none{% endif %}">
+            <div class="alert alert-warning mb-0 py-2 small">
+              <i class="bi bi-exclamation-triangle me-1"></i>
+              Email bo poslan vsem aktivnim članom, ki še niso plačali za izbrano leto.
+              Člani brez vpisane e-pošte bodo preskočeni.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">
+          <i class="bi bi-send me-1"></i>Pošlji
+        </button>
+        <a href="/obvestila" class="btn btn-outline-secondary">
+          <i class="bi bi-x me-1"></i>Prekliči
+        </a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Zamenjava vsebine forme ob izbiri predloge
+document.getElementById('selPredloga').addEventListener('change', function() {
+  const opt = this.options[this.selectedIndex];
+  const zadeva = opt.dataset.zadeva || '';
+  const telo = opt.dataset.telo || '';
+  document.getElementById('inpZadeva').value = zadeva;
+  document.getElementById('inpTelo').value = telo;
+});
+
+// Preklapljanje med posameznik/bulk
+document.querySelectorAll('input[name="_nacin"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    const posam = document.getElementById('divPosam');
+    const bulk = document.getElementById('divBulk');
+    if (this.value === 'posameznik') {
+      posam.classList.remove('d-none');
+      bulk.classList.add('d-none');
+    } else {
+      posam.classList.add('d-none');
+      bulk.classList.remove('d-none');
+      document.getElementById('inpClanId').value = '';
+    }
+  });
+});
+
+// Enostavno iskanje člana po ID
+document.getElementById('inpClanSearch').addEventListener('input', function() {
+  const val = this.value.trim();
+  if (/^\d+$/.test(val)) {
+    document.getElementById('inpClanId').value = val;
+  }
+});
+</script>
+{% endblock %}

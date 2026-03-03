@@ -1,4 +1,6 @@
-from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, Float, ForeignKey, Table, Index
+from datetime import datetime
+
+from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, Float, ForeignKey, Table, Index, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from .database import Base
@@ -172,3 +174,15 @@ class ClanVloga(Base):
     opombe = Column(String, nullable=True)
 
     clan = relationship("Clan", back_populates="vloge")
+
+
+class EmailPredloga(Base):
+    """Predloga za e-poštno obvestilo (poziv k plačilu članarine ipd.)."""
+    __tablename__ = "email_predloge"
+
+    id = Column(Integer, primary_key=True, index=True)
+    naziv = Column(String, nullable=False)
+    zadeva = Column(String, nullable=False)
+    telo_html = Column(Text, nullable=False)
+    je_privzeta = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)

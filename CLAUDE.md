@@ -1,7 +1,7 @@
 # CLAUDE.md – Radio klub Upravljanje Članstva
 
 Spletna aplikacija za upravljanje članstva radijskega kluba.
-Trenutna različica: **v1.16** (produkcijsko stabilna)
+Trenutna različica: **v1.17** (produkcijsko stabilna)
 
 ## Lokalni zagon
 
@@ -14,7 +14,7 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 python3 -m pytest tests/ -v
-# Pričakovano: 77 testov, 0 napak
+# Pričakovano: 88 testov, 0 napak
 ```
 
 ## Arhitektura
@@ -80,7 +80,7 @@ docker compose up -d   # Uporablja ghcr.io/s56oa/radioklubupravljanjeclanstva:la
 ```
 
 CI/CD: GitHub Actions gradi linux/amd64 + linux/arm64 ob push na `main` ali git tagu `vX.Y.Z`.
-Git tagi MORAJO biti semver z patch verzijo: `v1.16.0` (ne `v1.16`).
+Git tagi MORAJO biti semver z patch verzijo: `v1.17.0` (ne `v1.17`).
 
 ## Dokumentacija
 
