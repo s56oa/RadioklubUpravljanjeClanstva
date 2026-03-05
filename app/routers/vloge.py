@@ -33,11 +33,17 @@ async def dodaj(
     if not naziv or not datum_od:
         return RedirectResponse(url=f"/clani/{clan_id}#vloge", status_code=302)
 
+    try:
+        datum_od_parsed = date.fromisoformat(datum_od)
+        datum_do_parsed = date.fromisoformat(datum_do) if datum_do.strip() else None
+    except ValueError:
+        return RedirectResponse(url=f"/clani/{clan_id}#vloge", status_code=302)
+
     vloga = ClanVloga(
         clan_id=clan_id,
         naziv=naziv,
-        datum_od=date.fromisoformat(datum_od),
-        datum_do=date.fromisoformat(datum_do) if datum_do.strip() else None,
+        datum_od=datum_od_parsed,
+        datum_do=datum_do_parsed,
         opombe=opombe.strip() or None,
     )
     db.add(vloga)

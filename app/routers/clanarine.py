@@ -121,7 +121,10 @@ async def izbrisi(
     if not is_editor(user):
         return RedirectResponse(url=f"/clani/{clan_id}", status_code=302)
 
-    c = db.query(Clanarina).filter(Clanarina.id == clanarina_id).first()
+    c = db.query(Clanarina).filter(
+        Clanarina.id == clanarina_id,
+        Clanarina.clan_id == clan_id,
+    ).first()
     if c:
         db.delete(c)
         db.commit()

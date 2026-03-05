@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.18 | Datum: 2026-03-05*
+*Različica 1.19 | Datum: 2026-03-05*
 
 ---
 
@@ -652,9 +652,12 @@ Funkcija omogoča pošiljanje personaliziranih e-poštnih pozivov k plačilu čl
 
 ### Predloge
 
-Aplikacija ob zagonu ustvari dve privzeti predlogi:
-- **Poziv k plačilu članarine** – prijazno besedilo za prve pozive
-- **Opomnik za zamudnike** – odločnejše besedilo za zamudnike
+Aplikacija ob zagonu ustvari pet privzetih predlog:
+- **Poziv k plačilu članarine** – prijazno besedilo za prve pozive z UPN QR kodo
+- **Opomnik za zamudnike** – odločnejše besedilo za zamudnike z UPN QR kodo
+- **Obvestilo o potečeni veljavnosti RD** – poziv k obnovi radijskega dovoljenja
+- **Potrditev podatkov člana** – personalizirana HTML tabela s ključnimi podatki (za letno preverjanje)
+- **Univerzalna predloga** – osnovna struktura z dokumentiranimi razpoložljivimi spremenljivkami
 
 Privzetih predlog ni mogoče izbrisati; urediti jih je mogoče.
 
@@ -677,6 +680,16 @@ V zadevi in telesu e-pošte so na voljo Jinja2 spremenljivke, ki se ob pošiljan
 | `{{ klicni_znak }}` | Klicni znak prejemnika (prazen niz, če ni vnesen) |
 | `{{ leto }}` | Leto za katero se pošilja poziv |
 | `{{ qr_koda }}` | HTML `<img>` tag z UPN QR kodo (base64 PNG, 200 px) |
+| `{{ naslov_ulica }}` | Ulica in hišna številka |
+| `{{ naslov_posta }}` | Poštna številka in kraj |
+| `{{ tip_clanstva }}` | Tip članstva (npr. Osebni, Mladi) |
+| `{{ operaterski_razred }}` | Operaterski razred (npr. A, N) |
+| `{{ mobilni_telefon }}` | Mobilna telefonska številka |
+| `{{ telefon_doma }}` | Domača telefonska številka |
+| `{{ elektronska_posta }}` | E-poštni naslov člana |
+| `{{ veljavnost_rd }}` | Datum veljavnosti RD v obliki `DD. MM. LLLL` (prazen niz, če ni vnesen) |
+| `{{ es_stevilka }}` | ES-številka (klicni znak za personalizacijo) |
+| `{{ opombe }}` | Opombe iz kartice člana |
 
 ### Pošiljanje obvestila
 
@@ -687,7 +700,12 @@ Kliknite **Pošlji obvestilo** v navigacijski vrstici ali pri posameznem članu/
 3. **Uredite zadevo in telo** – po potrebi prilagodite besedilo.
 4. **Izberite prejemnika:**
    - **Posameznik** – vnesite ID člana (ali kliknete gumb iz kartice člana)
-   - **Bulk (vsi neplačniki)** – pošlje e-pošto vsem aktivnim članom, ki za izbrano leto še niso plačali
+   - **Skupinsko pošiljanje** – pošlje e-pošto skupini prejemnikov glede na izbrani filter:
+     - **Neplačniki za izbrano leto** – vsi aktivni člani, ki za izbrano leto še niso plačali
+     - **Člani s potečeno veljavnostjo RD** – aktivni člani, katerih RD je že preteklo
+     - **Člani, katerim RD poteče v 180 dneh** – aktivni člani s skoro potečenim RD
+     - **Vsi aktivni člani** – vsi člani z `aktiven=Da`
+     - **Vsi člani (aktivni in neaktivni)** – brez filtra po aktivnosti
 5. Kliknite **Pošlji**.
 
 Po pošiljanju se prikaže stran z rezultatom: število poslanih sporočil in število preskočenih (člani brez vpisanega e-poštnega naslova).

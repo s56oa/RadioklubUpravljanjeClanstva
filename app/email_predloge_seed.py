@@ -35,28 +35,144 @@ Lep pozdrav,<br>
 Uprava kluba</p>
 """
 
+_PREDLOGA_RD = """\
+<p>Spoštovani {{ priimek }} {{ ime }}{% if klicni_znak %} ({{ klicni_znak }}){% endif %},</p>
+
+<p>obveščamo vas, da je {% if veljavnost_rd %}vaše radijsko dovoljenje poteklo dne
+<strong>{{ veljavnost_rd }}</strong>{% else %}veljavnost vašega radijskega dovoljenja
+potekla oziroma datum ni zabeležen v evidenci{% endif %}.</p>
+
+<p>Prosimo vas, da čim prej uredite podaljšanje dovoljenja pri Agenciji za komunikacijska
+omrežja in storitve (AKOS). Brez veljavnega dovoljenja ne smete opravljati
+radioamaterske dejavnosti.</p>
+
+<p>Za vse informacije glede postopka podaljšanja obiščite spletno stran AKOS
+ali nas kontaktirajte.</p>
+
+<p>Lep pozdrav,<br>
+Uprava kluba</p>
+"""
+
+_PREDLOGA_PODATKI = """\
+<p>Spoštovani {{ priimek }} {{ ime }},</p>
+
+<p>prosimo vas, da preverite vaše podatke, ki jih imamo zabeležene v naši evidenci:</p>
+
+<table style="border-collapse:collapse; width:100%; max-width:500px; font-size:14px;">
+  <tr style="background:#f8f9fa;">
+    <td style="padding:6px 10px; font-weight:bold; width:45%;">Ime in priimek</td>
+    <td style="padding:6px 10px;">{{ ime }} {{ priimek }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px; font-weight:bold;">Klicni znak</td>
+    <td style="padding:6px 10px;">{{ klicni_znak or "–" }}</td>
+  </tr>
+  <tr style="background:#f8f9fa;">
+    <td style="padding:6px 10px; font-weight:bold;">Vrsta članstva</td>
+    <td style="padding:6px 10px;">{{ tip_clanstva or "–" }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px; font-weight:bold;">Operaterski razred</td>
+    <td style="padding:6px 10px;">{{ operaterski_razred or "–" }}</td>
+  </tr>
+  <tr style="background:#f8f9fa;">
+    <td style="padding:6px 10px; font-weight:bold;">Naslov</td>
+    <td style="padding:6px 10px;">{{ naslov_ulica or "" }}{% if naslov_ulica and naslov_posta %}, {% endif %}{{ naslov_posta or "" }}{% if not naslov_ulica and not naslov_posta %}–{% endif %}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px; font-weight:bold;">Mobilni telefon</td>
+    <td style="padding:6px 10px;">{{ mobilni_telefon or "–" }}</td>
+  </tr>
+  <tr style="background:#f8f9fa;">
+    <td style="padding:6px 10px; font-weight:bold;">Telefon (dom)</td>
+    <td style="padding:6px 10px;">{{ telefon_doma or "–" }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px; font-weight:bold;">E-pošta</td>
+    <td style="padding:6px 10px;">{{ elektronska_posta or "–" }}</td>
+  </tr>
+  <tr style="background:#f8f9fa;">
+    <td style="padding:6px 10px; font-weight:bold;">Veljavnost RD</td>
+    <td style="padding:6px 10px;">{{ veljavnost_rd or "–" }}</td>
+  </tr>
+  <tr>
+    <td style="padding:6px 10px; font-weight:bold;">Št. E.S. kartice</td>
+    <td style="padding:6px 10px;">{{ es_stevilka or "–" }}</td>
+  </tr>
+</table>
+
+<p style="margin-top:16px;">Če kateri od zgornjih podatkov ni pravilen ali je zastarel,
+nas prosimo čim prej obvestite, da posodobimo evidenco.</p>
+
+<p>Lep pozdrav,<br>
+Uprava kluba</p>
+"""
+
+_PREDLOGA_UNIVERZALNA = """\
+<p>Spoštovani {{ priimek }} {{ ime }},</p>
+
+<p><!-- Sem vnesite vsebino sporočila. -->
+<!-- Razpoložljive spremenljivke: -->
+<!-- Osnovne: {{ ime }}, {{ priimek }}, {{ klicni_znak }}, {{ leto }} -->
+<!-- Naslov: {{ naslov_ulica }}, {{ naslov_posta }} -->
+<!-- Članstvo: {{ tip_clanstva }}, {{ operaterski_razred }}, {{ klicni_znak_nosilci }} -->
+<!-- Kontakt: {{ mobilni_telefon }}, {{ telefon_doma }}, {{ elektronska_posta }} -->
+<!-- Dovoljenje: {{ veljavnost_rd }} (oblika: DD. MM. LLLL ali prazno) -->
+<!-- Ostalo: {{ es_stevilka }}, {{ opombe }} -->
+<!-- QR koda: {{ qr_koda }} (HTML <img> tag) -->
+</p>
+
+<p>Lep pozdrav,<br>
+Uprava kluba</p>
+"""
+
+
+_PRIVZETE_PREDLOGE = [
+    {
+        "naziv": "Poziv k plačilu članarine",
+        "zadeva": "Poziv k plačilu članarine za leto {{ leto }}",
+        "telo_html": _PREDLOGA_POZIV,
+    },
+    {
+        "naziv": "Opomnik za zamudnike",
+        "zadeva": "Opomnik – neplačana članarina za leto {{ leto }}",
+        "telo_html": _PREDLOGA_OPOMNIK,
+    },
+    {
+        "naziv": "Potečena veljavnost radijskega dovoljenja",
+        "zadeva": "Obvestilo o potečeni veljavnosti radijskega dovoljenja – {{ priimek }} {{ ime }}",
+        "telo_html": _PREDLOGA_RD,
+    },
+    {
+        "naziv": "Potrdi podatke člana",
+        "zadeva": "Prosimo preverite vaše podatke v evidenci kluba",
+        "telo_html": _PREDLOGA_PODATKI,
+    },
+    {
+        "naziv": "Univerzalna predloga",
+        "zadeva": "Obvestilo kluba – {{ priimek }} {{ ime }}",
+        "telo_html": _PREDLOGA_UNIVERZALNA,
+    },
+]
+
 
 def seed_predloge(db: Session) -> None:
-    """Ustvari privzeti predlogi, če tabela še nima nobene predloge."""
-    if db.query(EmailPredloga).count() > 0:
-        return
-
+    """Ustvari privzete predloge, ki še ne obstajajo (idempotentno po nazivu)."""
+    obstoječi_nazivi = {
+        r[0] for r in db.query(EmailPredloga.naziv).all()
+    }
     zdaj = datetime.utcnow()
-    predloge = [
+    nove = [
         EmailPredloga(
-            naziv="Poziv k plačilu članarine",
-            zadeva="Poziv k plačilu članarine za leto {{ leto }}",
-            telo_html=_PREDLOGA_POZIV,
+            naziv=p["naziv"],
+            zadeva=p["zadeva"],
+            telo_html=p["telo_html"],
             je_privzeta=True,
             created_at=zdaj,
-        ),
-        EmailPredloga(
-            naziv="Opomnik za zamudnike",
-            zadeva="Opomnik – neplačana članarina za leto {{ leto }}",
-            telo_html=_PREDLOGA_OPOMNIK,
-            je_privzeta=True,
-            created_at=zdaj,
-        ),
+        )
+        for p in _PRIVZETE_PREDLOGE
+        if p["naziv"] not in obstoječi_nazivi
     ]
-    db.add_all(predloge)
-    db.commit()
+    if nove:
+        db.add_all(nove)
+        db.commit()

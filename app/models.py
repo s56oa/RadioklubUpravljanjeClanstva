@@ -57,7 +57,7 @@ class Clan(Base):
     izjava = Column(String, nullable=True)
     veljavnost_rd = Column(Date, nullable=True)
     es_stevilka = Column(Integer, nullable=True)
-    aktiven = Column(Boolean, default=True, nullable=False)
+    aktiven = Column(Boolean, default=True, nullable=False, index=True)
     opombe = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
@@ -76,7 +76,7 @@ class Clanarina(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     clan_id = Column(Integer, ForeignKey("clani.id"), nullable=False)
-    leto = Column(Integer, nullable=False)
+    leto = Column(Integer, nullable=False, index=True)
     datum_placila = Column(Date, nullable=True)
     znesek = Column(String, nullable=True)
     opombe = Column(String, nullable=True)
@@ -89,7 +89,7 @@ class Aktivnost(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     clan_id = Column(Integer, ForeignKey("clani.id"), nullable=False)
-    leto = Column(Integer, nullable=False)
+    leto = Column(Integer, nullable=False, index=True)
     datum = Column(Date, nullable=True)
     opis = Column(String(1000), nullable=False)
     delovne_ure = Column(Float, nullable=True)

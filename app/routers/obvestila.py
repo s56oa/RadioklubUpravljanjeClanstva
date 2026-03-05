@@ -1,6 +1,6 @@
 """Router za upravljanje e-poštnih predlog in pošiljanje obvestil."""
 import logging
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
@@ -255,6 +255,7 @@ async def posli_post(
     telo_html: str = Form(...),
     leto: int = Form(...),
     clan_id: str = Form(""),
+    bulk_filter: str = Form("neplacniki"),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -292,14 +293,49 @@ async def posli_post(
         else:
             preskoceno = 1
     else:
-        # Bulk: vsi aktivni neplačniki za izbrano leto
-        clan_ids_placali = db.query(Clanarina.clan_id).filter(Clanarina.leto == leto)
-        clani = (
-            db.query(Clan)
-            .filter(Clan.aktiven == True, ~Clan.id.in_(clan_ids_placali))
-            .order_by(Clan.priimek, Clan.ime)
-            .all()
-        )
+        # Bulk: filter določa skupino prejemnikov
+        danes = date.today()
+        if bulk_filter == "rd_potekla":
+            # Aktivni člani s potečeno veljavnostjo RD
+            clani = (
+                db.query(Clan)
+                .filter(Clan.aktiven == True, Clan.veljavnost_rd < danes)
+                .order_by(Clan.priimek, Clan.ime)
+                .all()
+            )
+        elif bulk_filter == "rd_kmalu":
+            # Aktivni člani, katerim RD poteče v naslednjih 180 dneh
+            meja = danes + timedelta(days=180)
+            clani = (
+                db.query(Clan)
+                .filter(Clan.aktiven == True, Clan.veljavnost_rd >= danes, Clan.veljavnost_rd <= meja)
+                .order_by(Clan.priimek, Clan.ime)
+                .all()
+            )
+        elif bulk_filter == "vsi_aktivni":
+            # Vsi aktivni člani
+            clani = (
+                db.query(Clan)
+                .filter(Clan.aktiven == True)
+                .order_by(Clan.priimek, Clan.ime)
+                .all()
+            )
+        elif bulk_filter == "vsi":
+            # Vsi člani (aktivni in neaktivni)
+            clani = (
+                db.query(Clan)
+                .order_by(Clan.priimek, Clan.ime)
+                .all()
+            )
+        else:
+            # Privzeto: vsi aktivni neplačniki za izbrano leto
+            clan_ids_placali = db.query(Clanarina.clan_id).filter(Clanarina.leto == leto)
+            clani = (
+                db.query(Clan)
+                .filter(Clan.aktiven == True, ~Clan.id.in_(clan_ids_placali))
+                .order_by(Clan.priimek, Clan.ime)
+                .all()
+            )
         napake = []
         for clan in clani:
             if not clan.elektronska_posta or "@" not in clan.elektronska_posta:
@@ -318,7 +354,7 @@ async def posli_post(
                        f"Napake pri bulk pošiljanju: {', '.join(napake[:5])}")
 
         log_akcija(db, user.get("uporabnisko_ime"), "email_bulk_poslan",
-                   f"Bulk email: {poslano} poslanih, {preskoceno} preskočenih, leto {leto}")
+                   f"Bulk email ({bulk_filter}): {poslano} poslanih, {preskoceno} preskočenih, leto {leto}")
 
     request.session["obv_rezultat_poslano"] = poslano
     request.session["obv_rezultat_preskoceno"] = preskoceno

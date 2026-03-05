@@ -88,14 +88,22 @@
             <input class="form-check-input" type="radio" name="_nacin" id="rBulk" value="bulk"
               {% if not izbran_clan %}checked{% endif %}>
             <label class="form-check-label" for="rBulk">
-              Vsi aktivni neplačniki za izbrano leto
+              Skupinsko pošiljanje
               <span class="badge bg-warning text-dark ms-1">bulk</span>
             </label>
           </div>
           <div id="divBulk" class="mt-2 {% if izbran_clan %}d-none{% endif %}">
-            <div class="alert alert-warning mb-0 py-2 small">
+            <label class="form-label small mb-1">Filter prejemnikov</label>
+            <select name="bulk_filter" id="selBulkFilter" class="form-select form-select-sm mb-2">
+              <option value="neplacniki">Neplačniki za izbrano leto</option>
+              <option value="rd_potekla">Člani s potečeno veljavnostjo RD</option>
+              <option value="rd_kmalu">Člani, katerim RD poteče v 180 dneh</option>
+              <option value="vsi_aktivni">Vsi aktivni člani</option>
+              <option value="vsi">Vsi člani (aktivni in neaktivni)</option>
+            </select>
+            <div class="alert alert-warning mb-0 py-2 small" id="alertBulkOpis">
               <i class="bi bi-exclamation-triangle me-1"></i>
-              Email bo poslan vsem aktivnim članom, ki še niso plačali za izbrano leto.
+              <span id="txtBulkOpis">Email bo poslan vsem aktivnim členom, ki še niso plačali za izbrano leto.</span>
               Člani brez vpisane e-pošte bodo preskočeni.
             </div>
           </div>
@@ -148,6 +156,18 @@ document.getElementById('inpClanSearch').addEventListener('input', function() {
   if (/^\d+$/.test(val)) {
     document.getElementById('inpClanId').value = val;
   }
+});
+
+// Opis bulk filtra
+const bulkOpisi = {
+  'neplacniki': 'Email bo poslan vsem aktivnim členom, ki še niso plačali za izbrano leto.',
+  'rd_potekla': 'Email bo poslan vsem aktivnim členom, katerih veljavnost radijskega dovoljenja je že potekla.',
+  'rd_kmalu': 'Email bo poslan vsem aktivnim členom, katerim veljavnost radijskega dovoljenja poteče v naslednjih 180 dneh.',
+  'vsi_aktivni': 'Email bo poslan vsem aktivnim članom.',
+  'vsi': 'Email bo poslan vsem članom (aktivnim in neaktivnim).'
+};
+document.getElementById('selBulkFilter').addEventListener('change', function() {
+  document.getElementById('txtBulkOpis').textContent = bulkOpisi[this.value] || '';
 });
 </script>
 {% endblock %}

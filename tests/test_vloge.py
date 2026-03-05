@@ -318,3 +318,45 @@ def test_detail_vsebuje_vloge_clanov_v_dropdownu(client, db):
     assert "Predsednik" in resp.text
     assert "Blagajnik" in resp.text
     assert "Častni član" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# C1: validacija datuma – napačen format → redirect, ne 500
+# ---------------------------------------------------------------------------
+
+def test_dodaj_vlogo_napacen_datum_od(client, db):
+    """POST /vloge/dodaj z neveljavnim datum_od → redirect, vloga ni dodana."""
+    token = _login(client, db, vloga="urednik")
+    clan = _nov_clan(db)
+    resp = client.post(
+        "/vloge/dodaj",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "naziv": "Tajnik",
+            "datum_od": "ni-datum",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    # Vloga ne sme biti dodana
+    assert db.query(ClanVloga).filter(ClanVloga.clan_id == clan.id).count() == 0
+
+
+def test_dodaj_vlogo_napacen_datum_do(client, db):
+    """POST /vloge/dodaj z veljavnim datum_od in neveljavnim datum_do → redirect, vloga ni dodana."""
+    token = _login(client, db, vloga="urednik")
+    clan = _nov_clan(db)
+    resp = client.post(
+        "/vloge/dodaj",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "naziv": "Tajnik",
+            "datum_od": "2022-01-01",
+            "datum_do": "ni-datum",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert db.query(ClanVloga).filter(ClanVloga.clan_id == clan.id).count() == 0

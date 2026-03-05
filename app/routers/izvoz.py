@@ -690,6 +690,8 @@ async def backup_excel(request: Request, db: Session = Depends(get_db)) -> Respo
     user, redirect = require_login(request)
     if redirect:
         return redirect
+    if not is_admin(user):
+        return RedirectResponse(url="/izvoz", status_code=302)
 
     clani = db.query(Clan).order_by(Clan.priimek, Clan.ime).all()
 

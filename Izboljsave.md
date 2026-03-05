@@ -63,6 +63,8 @@
 | UPN QR koda za plačilo | ✅ | v1.16 | ZBS standard (19 polj, ISO-8859-2, kontrolna vsota); SVG prikaz v modalnem oknu; PNG prenos ({es/id}_{leto}.png); spremenljivke {leto}/{id}/{es} v predlogah; privzeta koda namena OTHR; pillow v requirements; 15 testov |
 | E-poštna obvestila (ročni pozivi iz UI) | ✅ | v1.17 | EmailPredloga model + Alembic 005; SMTP nastavitve v /nastavitve (starttls/ssl/plain); /obvestila router (editor+); 2 privzeti predlogi s QR kodo; pošiljanje posamezniku ali bulk vsem neplačnikom; embedded UPN QR PNG (base64); Jinja2 spremenljivke v predlogi; gumb na detail.html + seznam.html; 11 testov |
 | Uvoz veljavnosti RD iz AKOS registra | ✅ | v1.18 | 2-koračni flow (predogled → potrditev); identifikacija po klicnem znaku; stolpec "Velja do" → veljavnost_rd; prikaz sprememb (stara → nova); neujemajoči člani ostanejo nespremenjeni; audit log; 6 testov |
+| Varnostni popravki in indeksi | ✅ | v1.19 | `backup-excel` omejen na admin; IDOR zaščita pri brisanju članarine (clan_id validacija); try/except za neveljavni datum RD in E.S. številko (ne 500); Alembic 006: indeksi `Clan.aktiven`, `Clanarina.leto`, `Aktivnost.leto` |
+| Email predloge – razširitve | ✅ | v1.19 | 3 nove privzete predloge (potečena RD, podatki člana za potrditev, univerzalna); idempotentni seed po nazivu; vse Clan spremenljivke v predlogah (`veljavnost_rd` kot DD. MM. LLLL, vsa kontaktna polja); 5 bulk filtrov (neplačniki, rd_potekla, rd_kmalu, vsi_aktivni, vsi) |
 
 ---
 
@@ -141,22 +143,16 @@
 
 ### Indeksi na bazi podatkov
 
-Analiza obstoječih poizvedb kaže na pomanjkanje indeksov na pogosto filtriranih stolpcih.
-Vse spremembe zahtevajo novo Alembic migracijo (npr. `004_indeksi.py`).
+V v1.19 so bili dodani najpomembnejši indeksi (Alembic 006). Preostale možne izboljšave:
 
 | Tabela | Stolpec(ci) | Razlog | Prioriteta |
 |---|---|---|---|
-| `clanarine` | `clan_id` | FK – lazy loading pri `clan.clanarine` (detail stran) | **Visoka** |
-| `clanarine` | `leto` | Filter na `/clanarine` in poizvedba `placali_ids` na `/clani` | **Visoka** |
-| `clanarine` | `(clan_id, leto)` | Kompozitni index – upsert check: `filter(clan_id==X, leto==Y)` | **Visoka** |
-| `aktivnosti` | `clan_id` | FK – lazy loading pri `clan.aktivnosti` (detail stran) | **Visoka** |
-| `aktivnosti` | `leto` | Filter na `/aktivnosti` (WHERE leto >= ...) | **Visoka** |
-| `clani` | `aktiven` | Najpogostejši filter na `/clani` – vsaka nalaganje seznama | **Srednja** |
-| `clani` | `(priimek, ime)` | ORDER BY na `/clani`; uvoz Excel identificira po priimek+ime | **Srednja** |
+| `clanarine` | `(clan_id, leto)` | Kompozitni index – upsert check: `filter(clan_id==X, leto==Y)` | **Srednja** |
+| `clani` | `(priimek, ime)` | ORDER BY na `/clani`; uvoz Excel identificira po priimek+ime | **Nizka** |
 | `clani` | `veljavnost_rd` | RD filter (`potekla/kmalu/veljavna/brez`) | **Nizka** |
 | `audit_log` | `cas` | ORDER BY `cas DESC` pri prikazu in izvozu | **Nizka** |
 
-**Opomba:** SQLite je pri majhnih zbirkah (<500 članov) hiter tudi brez indeksov. Indeksi postanejo opazno koristni pri `audit_log`, ki raste brez omejitev.
+**Opomba:** SQLite je pri majhnih zbirkah (<500 članov) hiter tudi brez indeksov.
 
 ### Predpomnjenje nastavitev (caching)
 

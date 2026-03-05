@@ -187,6 +187,25 @@ async def nov_shrani(
             },
         )
 
+    try:
+        vrd = date.fromisoformat(veljavnost_rd) if veljavnost_rd else None
+        es_st = int(es_stevilka) if es_stevilka.strip() else None
+    except ValueError:
+        napaka = "Napačen format datuma veljavnosti RD ali številke E.S. kartice."
+        return templates.TemplateResponse(
+            request,
+            "clani/form.html",
+            {
+                "request": request,
+                "user": user,
+                "clan": None,
+                "tipi_clanstva": tipi,
+                "operaterski_razredi": get_operaterski_razredi(db),
+                "is_admin": is_admin(user),
+                "napaka": napaka,
+            },
+        )
+
     clan = Clan(
         priimek=priimek,
         ime=ime,
@@ -201,8 +220,8 @@ async def nov_shrani(
         elektronska_posta=email,
         soglasje_op=soglasje_op.strip() or None,
         izjava=izjava.strip() or None,
-        veljavnost_rd=date.fromisoformat(veljavnost_rd) if veljavnost_rd else None,
-        es_stevilka=int(es_stevilka) if es_stevilka.strip() else None,
+        veljavnost_rd=vrd,
+        es_stevilka=es_st,
         opombe=opombe.strip() or None,
         aktiven=(aktiven == "da"),
     )
@@ -333,6 +352,25 @@ async def uredi_shrani(
             },
         )
 
+    try:
+        vrd = date.fromisoformat(veljavnost_rd) if veljavnost_rd else None
+        es_st = int(es_stevilka) if es_stevilka.strip() else None
+    except ValueError:
+        napaka = "Napačen format datuma veljavnosti RD ali številke E.S. kartice."
+        return templates.TemplateResponse(
+            request,
+            "clani/form.html",
+            {
+                "request": request,
+                "user": user,
+                "clan": clan,
+                "tipi_clanstva": tipi,
+                "operaterski_razredi": get_operaterski_razredi(db),
+                "is_admin": is_admin(user),
+                "napaka": napaka,
+            },
+        )
+
     clan.priimek = priimek
     clan.ime = ime
     clan.klicni_znak = kz
@@ -346,8 +384,8 @@ async def uredi_shrani(
     clan.elektronska_posta = email
     clan.soglasje_op = soglasje_op.strip() or None
     clan.izjava = izjava.strip() or None
-    clan.veljavnost_rd = date.fromisoformat(veljavnost_rd) if veljavnost_rd else None
-    clan.es_stevilka = int(es_stevilka) if es_stevilka.strip() else None
+    clan.veljavnost_rd = vrd
+    clan.es_stevilka = es_st
     clan.opombe = opombe.strip() or None
     clan.aktiven = aktiven == "da"
     db.commit()

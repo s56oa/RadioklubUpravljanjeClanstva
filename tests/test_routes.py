@@ -5,6 +5,25 @@ from app.auth import hash_geslo
 from app.models import Uporabnik, Clan, Clanarina, Aktivnost
 
 
+def _login_csrf(client, db, vloga="admin") -> str:
+    """Ustvari uporabnika, ga prijavi in vrne svež CSRF token."""
+    u = Uporabnik(
+        uporabnisko_ime="testuser2",
+        geslo_hash=hash_geslo("Veljavno1234!ab"),
+        vloga=vloga,
+        ime_priimek="Test User2",
+        aktiven=True,
+    )
+    db.add(u)
+    db.commit()
+    resp = client.get("/login")
+    csrf = re.search(r'<input[^>]*name="csrf_token"[^>]*value="([^"]+)"', resp.text).group(1)
+    client.post("/login", data={"csrf_token": csrf, "uporabnisko_ime": "testuser2",
+                                "geslo": "Veljavno1234!ab"}, follow_redirects=False)
+    resp = client.get("/profil")
+    return re.search(r'<input[^>]*name="csrf_token"[^>]*value="([^"]+)"', resp.text).group(1)
+
+
 # ---------------------------------------------------------------------------
 # Helper
 # ---------------------------------------------------------------------------
@@ -54,7 +73,7 @@ def test_verzijska_znacka_vsebuje_verzijo(client, db):
     _login(client, db)
     resp = client.get("/clani")
     assert resp.status_code == 200
-    assert "1.18" in resp.text
+    assert "1.19" in resp.text
 
 
 def test_get_clani_brez_seje(client):
@@ -267,3 +286,126 @@ def test_clani_filter_leto_placila(client, db):
     resp = client.get(f"/clani?placal=ne&leto_placila={leto_zdaj - 1}")
     assert resp.status_code == 200
     assert "Tester" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# V1: backup-excel – samo admin
+# ---------------------------------------------------------------------------
+
+def test_backup_excel_admin(client, db):
+    """Admin dobi 200 in Excel vsebino."""
+    _login(client, db, vloga="admin")
+    resp = client.get("/izvoz/backup-excel")
+    assert resp.status_code == 200
+    assert "spreadsheetml" in resp.headers.get("content-type", "")
+
+
+def test_backup_excel_urednik_zavrnjen(client, db):
+    """Urednik dobi redirect – ne sme imeti dostopa."""
+    _login(client, db, vloga="urednik")
+    resp = client.get("/izvoz/backup-excel", follow_redirects=False)
+    assert resp.status_code == 302
+    assert "/izvoz" in resp.headers["location"]
+
+
+def test_backup_excel_bralec_zavrnjen(client, db):
+    """Bralec dobi redirect."""
+    _login(client, db, vloga="bralec")
+    resp = client.get("/izvoz/backup-excel", follow_redirects=False)
+    assert resp.status_code == 302
+
+
+# ---------------------------------------------------------------------------
+# V2: clanarina izbrisi – IDOR zaščita (clan_id mora ujemati)
+# ---------------------------------------------------------------------------
+
+def test_clanarina_izbrisi_idor_blokiran(client, db):
+    """Brisanje z napačnim clan_id ne izbriše clanarine drugega člana."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan_a = Clan(priimek="A", ime="Clan", tip_clanstva="Osebni", aktiven=True)
+    clan_b = Clan(priimek="B", ime="Clan", tip_clanstva="Osebni", aktiven=True)
+    db.add_all([clan_a, clan_b])
+    db.commit()
+    db.refresh(clan_a)
+    db.refresh(clan_b)
+
+    c = Clanarina(clan_id=clan_a.id, leto=2025, datum_placila=date(2025, 1, 1))
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    cid = c.id
+
+    # Napadalec pošlje clan_id=clan_b.id, ampak clanarina_id pripada clan_a
+    resp = client.post(
+        f"/clanarine/izbrisi/{cid}",
+        data={"csrf_token": token, "clan_id": clan_b.id},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    # Clanarina mora ostati – clan_id se ni ujemal
+    assert db.query(Clanarina).filter(Clanarina.id == cid).first() is not None
+
+
+def test_clanarina_izbrisi_pravilno(client, db):
+    """Brisanje z ujemajočim clan_id uspešno zbriše clanarina."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan = Clan(priimek="Del", ime="Clan", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+
+    c = Clanarina(clan_id=clan.id, leto=2025, datum_placila=date(2025, 1, 1))
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+    cid = c.id
+
+    resp = client.post(
+        f"/clanarine/izbrisi/{cid}",
+        data={"csrf_token": token, "clan_id": clan.id},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert db.query(Clanarina).filter(Clanarina.id == cid).first() is None
+
+
+# ---------------------------------------------------------------------------
+# C1+C2: validacija vnosa – napačen datum / es_stevilka → 200 z napako, ne 500
+# ---------------------------------------------------------------------------
+
+def test_clan_nov_napacen_datum_rd(client, db):
+    """POST /clani/nov z neveljavnim datumom RD vrne 200 z napako, ne 500."""
+    token = _login_csrf(client, db, vloga="urednik")
+    resp = client.post(
+        "/clani/nov",
+        data={
+            "csrf_token": token,
+            "priimek": "Test",
+            "ime": "Clan",
+            "tip_clanstva": "Osebni",
+            "veljavnost_rd": "ni-datum",
+            "es_stevilka": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert "Napačen format" in resp.text or "napak" in resp.text.lower()
+
+
+def test_clan_nov_napacna_es_stevilka(client, db):
+    """POST /clani/nov z neštevilčno E.S. številko vrne 200 z napako, ne 500."""
+    token = _login_csrf(client, db, vloga="urednik")
+    resp = client.post(
+        "/clani/nov",
+        data={
+            "csrf_token": token,
+            "priimek": "Test",
+            "ime": "Clan",
+            "tip_clanstva": "Osebni",
+            "veljavnost_rd": "",
+            "es_stevilka": "abc",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 200
+    assert "Napačen format" in resp.text or "napak" in resp.text.lower()

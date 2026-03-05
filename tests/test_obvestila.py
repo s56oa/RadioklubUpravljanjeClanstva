@@ -1,6 +1,6 @@
 """Testi za /obvestila router – upravljanje predlog in pošiljanje emailov."""
 import re
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from unittest.mock import MagicMock, patch
 
 from app.auth import hash_geslo
@@ -254,6 +254,112 @@ def test_posli_bulk(client, db):
     # 3 poslani, 1 preskočen (brez emaila)
     assert "3" in resp.text
     assert "1" in resp.text
+
+
+def test_posli_bulk_rd_potekla(client, db):
+    """POST /obvestila/posli bulk_filter=rd_potekla → email poslan samo članu s potečeno RD."""
+    token = _login(client, db)
+    danes = date.today()
+    # Član s potečeno RD
+    c_potek = Clan(priimek="Stari", ime="Rok", tip_clanstva="Osebni", aktiven=True,
+                   elektronska_posta="stari@test.si",
+                   veljavnost_rd=danes - timedelta(days=30))
+    # Član z veljavno RD
+    c_velj = Clan(priimek="Mladi", ime="Ana", tip_clanstva="Osebni", aktiven=True,
+                  elektronska_posta="mladi@test.si",
+                  veljavnost_rd=danes + timedelta(days=200))
+    # Aktiven brez RD
+    c_brez_rd = Clan(priimek="Brez", ime="RD", tip_clanstva="Osebni", aktiven=True,
+                     elektronska_posta="brezrd@test.si")
+    db.add_all([c_potek, c_velj, c_brez_rd])
+    db.commit()
+
+    p = _nova_predloga(db)
+    _nastavi_smtp(db)
+
+    with patch("app.email.smtplib.SMTP") as mock_smtp_cls:
+        mock_smtp = MagicMock()
+        mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
+        mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        resp = client.post(
+            "/obvestila/posli",
+            data={
+                "csrf_token": token,
+                "predloga_id": p.id,
+                "zadeva": "Potečena RD – {{ priimek }}",
+                "telo_html": "<p>Potečena RD: {{ veljavnost_rd }}</p>",
+                "leto": "2026",
+                "clan_id": "",
+                "bulk_filter": "rd_potekla",
+            },
+            follow_redirects=True,
+        )
+    assert resp.status_code == 200
+    # Samo 1 poslan (c_potek), ostala 2 nimata potečene RD
+    assert "1" in resp.text
+
+
+def test_posli_bulk_vsi_aktivni(client, db):
+    """bulk_filter=vsi_aktivni → email poslan vsem aktivnim, neaktivni preskočeni."""
+    token = _login(client, db)
+    c_akt = _nov_clan(db, ime="Aktiven", priimek="Clan", email="akt@test.si")
+    c_neakt = _nov_clan(db, ime="Neaktiven", priimek="Clan", email="neakt@test.si", aktiven=False)
+    p = _nova_predloga(db)
+    _nastavi_smtp(db)
+
+    with patch("app.email.smtplib.SMTP") as mock_smtp_cls:
+        mock_smtp = MagicMock()
+        mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
+        mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        resp = client.post(
+            "/obvestila/posli",
+            data={
+                "csrf_token": token,
+                "predloga_id": p.id,
+                "zadeva": "Zadeva",
+                "telo_html": "<p>Test {{ priimek }}</p>",
+                "leto": "2026",
+                "clan_id": "",
+                "bulk_filter": "vsi_aktivni",
+            },
+            follow_redirects=True,
+        )
+    assert resp.status_code == 200
+    # 1 poslan (aktiven), 0 preskočenih (neaktiven nima e-pošte, a ga filter sploh ne ujame)
+    assert mock_smtp_cls.return_value.__enter__.return_value.send_message.call_count == 1
+
+
+def test_posli_bulk_vsi(client, db):
+    """bulk_filter=vsi → email poslan aktivnim in neaktivnim članom z e-pošto."""
+    token = _login(client, db)
+    c_akt = _nov_clan(db, ime="Aktiven", priimek="Clan", email="akt@test.si")
+    c_neakt = _nov_clan(db, ime="Neaktiven", priimek="Clan", email="neakt@test.si", aktiven=False)
+    p = _nova_predloga(db)
+    _nastavi_smtp(db)
+
+    with patch("app.email.smtplib.SMTP") as mock_smtp_cls:
+        mock_smtp = MagicMock()
+        mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
+        mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        resp = client.post(
+            "/obvestila/posli",
+            data={
+                "csrf_token": token,
+                "predloga_id": p.id,
+                "zadeva": "Zadeva",
+                "telo_html": "<p>Test {{ priimek }}</p>",
+                "leto": "2026",
+                "clan_id": "",
+                "bulk_filter": "vsi",
+            },
+            follow_redirects=True,
+        )
+    assert resp.status_code == 200
+    # 2 poslana (aktiven + neaktiven imata oba e-pošto)
+    assert mock_smtp_cls.return_value.__enter__.return_value.send_message.call_count == 2
 
 
 def test_posli_brez_smtp(client, db):

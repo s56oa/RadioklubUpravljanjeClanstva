@@ -1,13 +1,13 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-05 (v1.18)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-05 (v1.19)*
 
 ---
 
 ## Povzetek
 
 Aplikacija je primarna za uporabo v zaupljivem lokalnem okolju (radioklub, domače omrežje, VPN).
-Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
+Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). V v1.19 so bile odpravljene tri varnostne pomanjkljivosti: backup Excel omejen na admin, IDOR zaščita pri brisanju članarine in validacija formata vhodnih podatkov. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
 
 ---
 
@@ -47,6 +47,9 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Začasno geslo ustreza politiki (16 znakov, mešano + posebni) | ✅ | v1.13 |
 | Email header injection zaščita (strip `\r\n` iz zadeve, From, To) | ✅ | v1.18 |
 | Jinja2 SandboxedEnvironment za email predloge (preprečitev template injection) | ✅ | v1.18 |
+| Backup Excel (`/izvoz/backup-excel`) omejen samo na admin (preprečitev dostopa uredniku) | ✅ | v1.19 |
+| IDOR zaščita pri brisanju članarine (`clan_id` validacija prepreči brisanje tuje clanarine) | ✅ | v1.19 |
+| Validacija formata datuma veljavnosti RD in ES-številke (vrne 200 z napako, ne 500) | ✅ | v1.19 |
 
 ---
 
@@ -211,6 +214,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.16 | Odstranjen `/upn/{id}/{leto}/debug` endpoint (razkritje plačilnih podatkov vsem prijavljenim); odpravljena ranljivost `UnicodeEncodeError` → HTTP 500 pri non-ASCII znakih v `Content-Disposition` headerju (ime/priimek člana s šumniki) |
 | v1.17 | SMTP geslo shranjeno v čistem besedilu v bazi (sprejeto tveganje S8; priporočena gesla za aplikacijo); dodana `\| safe` zaščita za interni SVG QR; email funkcija brez posebnih varnostnih tveganj |
 | v1.18 | Email header injection odpravljena (strip `\r\n` iz zadeve, From, To pred vstavljanjem v headers); Jinja2 `SandboxedEnvironment` za email predloge (preprečitev template injection pri user-supplied Jinja2 predlogah) |
+| v1.19 | `/backup-excel` omejen samo na admin; IDOR zaščita pri brisanju članarine (`clan_id` validacija); validacija formata datuma veljavnosti RD in ES-številke pri vnosu/urejanju člana; DB indeksi za `clani.aktiven`, `clanarine.leto`, `aktivnosti.leto` (Alembic 006) |
 
 ---
 

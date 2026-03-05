@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.18 | Datum: 2026-03-05*
+*Različica 1.19 | Datum: 2026-03-05*
 
 ---
 
@@ -81,7 +81,7 @@ UpravljanjeClanstva/
 │   ├── audit_log.py      – log_akcija() helper
 │   ├── upn.py            – UPN QR generiranje (ZBS standard, segno)
 │   ├── email.py          – SMTP pošiljanje, UPN QR base64 embed, Jinja2 render predlog
-│   ├── email_predloge_seed.py – seed 2 privzeti predlogi ob zagonu
+│   ├── email_predloge_seed.py – seed 5 predlog (2 privzeti + 3 tematski: potečena RD, podatki člana, univerzalna)
 │   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, vloge, upn, obvestila, …)
 │   ├── templates/        – Jinja2 HTML predloge (clani/, clanarine/, aktivnosti/, dashboard/, obvestila/, …)
 │   └── static/           – CSS, ikone
@@ -93,7 +93,8 @@ UpravljanjeClanstva/
 │       ├── 002_zaupljive_naprave.py
 │       ├── 003_login_poskusi.py
 │       ├── 004_clan_vloge.py
-│       └── 005_email_predloge.py
+│       ├── 005_email_predloge.py
+│       └── 006_indeksi.py
 ├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
 │   ├── clanstvo.db
 │   └── app.log           – rotating log (5 MB × 5)
@@ -827,15 +828,15 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.18.0` | `1.18.0`, `1.18`, `1`, `latest` |
+| Git tag `v1.19.0` | `1.19.0`, `1.19`, `1`, `latest` |
 
-> **Opomba:** `v1.18` (brez patch) ni veljaven semver in workflow bo zatajil.
-> Vedno uporabite obliko `v1.18.0`.
+> **Opomba:** `v1.19` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.19.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.18.0
-git push origin v1.18.0
+git tag v1.19.0
+git push origin v1.19.0
 ```
 
 ### Docker tag v `docker-compose.yml`
@@ -921,7 +922,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (94) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (106) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1040,8 +1041,9 @@ alembic_command.upgrade(cfg, "head")
 | `003` | Nova tabela `login_poskusi` (persistentni rate limiting prijave) |
 | `004` | Nova tabela `clan_vloge` (evidenca vlog in funkcij člana z zgodovino) |
 | `005` | Nova tabela `email_predloge` (predloge za e-poštna obvestila) |
+| `006` | DB indeksi: `ix_clani_aktiven`, `ix_clanarine_leto`, `ix_aktivnosti_leto` |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`005`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`006`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 
@@ -1122,6 +1124,9 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | SMTP geslo shranjeno v bazi (nastavitve); priporočamo geslo za aplikacijo | v1.17 |
 | Email header injection zaščita (strip `\r\n` iz zadeve in naslovov) | v1.18 |
 | Jinja2 SandboxedEnvironment za renderiranje email predlog | v1.18 |
+| `/backup-excel` omejen samo na admin | v1.19 |
+| IDOR zaščita pri brisanju članarine (`clan_id` validacija) | v1.19 |
+| Validacija formata datuma veljavnosti RD in ES-številke (400 namesto 500) | v1.19 |
 
 ### Varnostno vzdrževanje
 
@@ -1151,12 +1156,12 @@ pytest tests/ -v
 | `test_normalizacija.py` | _normaliziraj_clan (title case, KZ, email) | 6 |
 | `test_config.py` | get_nastavitev, get_seznam, get_tipi_clanstva | 4 |
 | `test_audit.py` | log_akcija, napaka ne propagira | 3 |
-| `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka | 18 |
-| `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown | 15 |
+| `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka, backup-excel dostop, IDOR clanarina, validacija vnosa | 25 |
+| `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown, validacija datumov | 17 |
 | `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
-| `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk, brez SMTP (mock smtplib) | 11 |
+| `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk (neplačniki/rd_potekla/vsi_aktivni/vsi), brez SMTP (mock smtplib) | 14 |
 | `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ | 6 |
-| **Skupaj** | | **94** |
+| **Skupaj** | | **106** |
 
 ### Testna infrastruktura
 
@@ -1169,4 +1174,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.18 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.19 + CI/CD*
