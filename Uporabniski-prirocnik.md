@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.17 | Datum: 2026-03-03*
+*Različica 1.18 | Datum: 2026-03-05*
 
 ---
 
@@ -25,6 +25,7 @@
 17. [Vloge in funkcije člana](#17-vloge-in-funkcije-člana)
 18. [UPN QR koda za plačilo](#18-upn-qr-koda-za-plačilo)
 19. [E-poštna obvestila](#19-e-poštna-obvestila)
+20. [Uvoz veljavnosti RD iz AKOS registra](#20-uvoz-veljavnosti-rd-iz-akos-registra)
 
 ---
 
@@ -37,7 +38,7 @@ Aplikacija za upravljanje članstva radiokluba omogoča:
 - beleženje aktivnosti in delovnih ur posameznih članov,
 - vodenje zgodovine vlog in funkcij člana (predsednik, tajnik, blagajnik …),
 - razvrščanje članov v interesne skupine,
-- uvoz obstoječih podatkov iz Excel datoteke in izvoz za prijavo na ZRS (Zveza radioamaterjev Slovenije),
+- uvoz obstoječih podatkov iz Excel datoteke, uvoz veljavnosti RD iz AKOS registra in izvoz za prijavo na ZRS (Zveza radioamaterjev Slovenije),
 - pošiljanje personaliziranih e-poštnih pozivov k plačilu z embedded UPN QR kodo,
 - varno upravljanje z vlogami: vsak uporabnik vidi ali ureja samo tisto, do česar je pooblaščen.
 
@@ -706,4 +707,44 @@ Dopolnite e-poštne naslove v kartici člana: **Uredi → E-pošta**.
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.17 (2026-03-03)*
+---
+
+## 20. Uvoz veljavnosti RD iz AKOS registra
+
+Dostopno samo za admin: **Izvoz/Uvoz → Uvozi iz Excel** (sekcija *Uvoz veljavnosti RD iz AKOS registra*).
+
+Funkcija omogoča masovno posodabljanje datumov veljavnosti radioamaterskih dovoljenj (RD) neposredno iz uradnega registra AKOS (Agencija za komunikacijska omrežja in storitve).
+
+### Priprava datoteke
+
+Prenesite aktualni Excel register z uradnih strani AKOS: **Registri → Radioamaterji** (datoteka v obliki `.xlsx`). Datoteka mora vsebovati stolpce **Klicni znak** in **Velja do** (format DD.MM.LLLL).
+
+### Potek uvoza (2 koraka)
+
+**1. korak – Nalaganje in predogled:**
+
+1. V sekciji *Uvoz veljavnosti RD iz AKOS registra* izberite AKOS `.xlsx` datoteko.
+2. Kliknite **Uvozi veljavnosti RD**.
+
+Aplikacija primerja klicne znake iz AKOS datoteke z aktivnimi člani v bazi in prikaže:
+- **Člani za posodobitev** – ujemajoči se člani z novo veljavnostjo (stara → nova z puščico)
+- **Že aktualni** (zložen razdelek) – ujemajoči se člani, katerih datum je enak ali ni spremembe
+- **Informacija** – koliko aktivnih članov s klicnim znakom ni v AKOS datoteki (ostanejo nespremenjeni)
+
+**2. korak – Potrditev:**
+
+Preglejte predogled in kliknite **Potrdi posodobitev**. Za preklic kliknite **Prekliči** – v bazo se nič ne zapiše.
+
+### Kaj se posodobi
+
+- **Posodobi se:** `veljavnost_rd` (datum do katerega velja RD dovoljenje, stolpec *Velja do*)
+- **Ne posodobi se:** operaterski razred, ostali podatki člana
+- **Identifikacija:** izključno po klicnem znaku (neobčutljivo na velikost črk)
+- **Člani brez ujemanja:** ostanejo nespremenjeni (aplikacija samo poroča o številu)
+- **Člani brez klicnega znaka:** se tiho preskočijo
+
+> Priporočamo uvoz enkrat letno ob obnovi dovoljenj (tipično januarja/februarja).
+
+---
+
+*Radio klub Člani – Upravljanje Članstva – različica 1.18 (2026-03-05)*

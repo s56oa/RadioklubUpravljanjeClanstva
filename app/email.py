@@ -8,7 +8,7 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from jinja2 import Environment, Undefined
+from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy.orm import Session
 
 from .config import get_nastavitev, get_clanarina_zneski
@@ -70,8 +70,13 @@ def _qr_img_tag(clan: Clan, leto: int, db: Session) -> str:
 
 
 def _render_predloga(telo_html: str, clan: Clan, leto: int, qr_img_tag: str) -> str:
-    """Renderira HTML predlogo z Jinja2 spremenljivkami."""
-    env = Environment(autoescape=False)
+    """Renderira HTML predlogo z Jinja2 spremenljivkami.
+
+    Uporablja SandboxedEnvironment, ki preprečuje dostop do nevarnih Python
+    atributov in metod iz user-supplied predlog (template injection zaščita).
+    autoescape=False je namerno – predloge vsebujejo HTML (vključno z embedded PNG).
+    """
+    env = SandboxedEnvironment(autoescape=False)
     tmpl = env.from_string(telo_html)
     return tmpl.render(
         ime=clan.ime,
@@ -98,18 +103,22 @@ def posli_email(
     html_telo = _render_predloga(telo_predloga, clan, leto, qr_tag)
 
     # Render zadeve (enostavna string zamenjava)
-    env = Environment(autoescape=False)
+    env = SandboxedEnvironment(autoescape=False)
     zadeva = env.from_string(zadeva_predloga).render(
         ime=clan.ime,
         priimek=clan.priimek,
         klicni_znak=clan.klicni_znak or "",
         leto=leto,
     )
+    # Zaščita pred email header injection: odstrani CR/LF iz zadeve in naslovov
+    zadeva = zadeva.replace("\r", "").replace("\n", " ").strip()
+    od = smtp_nastavitve["od"].replace("\r", "").replace("\n", "").strip()
+    na = (clan.elektronska_posta or "").replace("\r", "").replace("\n", "").strip()
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = zadeva
-    msg["From"] = smtp_nastavitve["od"]
-    msg["To"] = clan.elektronska_posta
+    msg["From"] = od
+    msg["To"] = na
     msg.attach(MIMEText(html_telo, "html", "utf-8"))
 
     host = smtp_nastavitve["host"]

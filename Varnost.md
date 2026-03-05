@@ -1,13 +1,13 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-03 (v1.16)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-05 (v1.18)*
 
 ---
 
 ## Povzetek
 
 Aplikacija je primarna za uporabo v zaupljivem lokalnem okolju (radioklub, domače omrežje, VPN).
-Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR (preprečitev razkritja podatkov) in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
+Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
 
 ---
 
@@ -45,6 +45,8 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Iztok seje ob neaktivnosti (30 min, `InactivityTimeoutMiddleware`) | ✅ | v1.13 |
 | Validacija `vloga` na dovoljene vrednosti pri urejanju uporabnikov | ✅ | v1.13 |
 | Začasno geslo ustreza politiki (16 znakov, mešano + posebni) | ✅ | v1.13 |
+| Email header injection zaščita (strip `\r\n` iz zadeve, From, To) | ✅ | v1.18 |
+| Jinja2 SandboxedEnvironment za email predloge (preprečitev template injection) | ✅ | v1.18 |
 
 ---
 
@@ -111,7 +113,24 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 #### S5. ~~`vloga` ni validirana na dovoljene vrednosti~~ ✅ IMPLEMENTIRANO (v1.13)
 - `app/routers/uporabniki.py`: `if vloga not in VLOGE: vloga = "bralec"` v obeh POST handlerjih.
 
-#### S6. Skupiny brisanje dovoli urednik, ne samo admin
+#### S6. ~~Email header injection~~ ✅ IMPLEMENTIRANO (v1.18)
+- Strip `\r\n` iz `zadeva`, `From` in `To` polj pred vstavljanjem v SMTP message headers.
+- Odpravlja možnost BCC injection in ponarejanje headerjev prek zlonamernih email predlog.
+
+#### S7. ~~Jinja2 template injection v email predlogah~~ ✅ IMPLEMENTIRANO (v1.18)
+- `Environment(autoescape=False)` zamenjano z `SandboxedEnvironment(autoescape=False)`.
+- `SandboxedEnvironment` omejuje dostop do Python internals (dunder metode, `__class__`, `__mro__`, idr.) in preprečuje izkoriščanje prek user-supplied Jinja2 predlog.
+- `autoescape=False` ostane namerno – email predloge vsebujejo HTML s embedded PNG QR kodo.
+
+#### S8. SMTP geslo shranjeno v čistem besedilu v SQLite
+- **Datoteka:** `data/clanstvo.db` tabela `nastavitve`, ključ `smtp_geslo`
+- **Tveganje:** Kdor ima dostop do SQLite datoteke (backup, direkten dostop do strežnika), vidi SMTP geslo v čistem besedilu.
+- **Ukrep:** Priporočamo uporabo **gesla za aplikacijo** (App Password) namesto glavnega računa:
+  - Gmail: Varnostne nastavitve → Gesla za aplikacije → Ustvari za *Mail/Drugo*
+  - S tem je mogoče kadar koli preklicati dostop samo za to aplikacijo, ne za celoten e-poštni račun.
+- **Stanje:** Sprejeto tveganje – šifriranje gesel v bazi zahteva upravljanje šifrirnega ključa, kar je izven obsega te aplikacije.
+
+#### S9. Skupiny brisanje dovoli urednik, ne samo admin
 - **Datoteka:** `app/routers/skupine.py` vrstica 143
 - **Opomba:** `POST /{skupid}/izbrisi` zahteva `is_editor`, medtem ko brisanje članov zahteva
   `is_admin`. Nedoslednost: urednik lahko izbriše skupino (z vsemi asociacijami), a ne more
@@ -190,6 +209,8 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.13 | Persistentni rate limiting (SQLite); ContentSizeLimitMiddleware (1 MB); InactivityTimeoutMiddleware (30 min); validacija `vloga`; začasno geslo ustreza politiki (16 znakov + posebni) |
 | v1.14 | Brez novih varnostnih tveganj; nov /aktivnosti, /clanarine, /dashboard – samo GET, require_login, ORM queries, Jinja2 autoescaping, tojson za Chart.js podatke |
 | v1.16 | Odstranjen `/upn/{id}/{leto}/debug` endpoint (razkritje plačilnih podatkov vsem prijavljenim); odpravljena ranljivost `UnicodeEncodeError` → HTTP 500 pri non-ASCII znakih v `Content-Disposition` headerju (ime/priimek člana s šumniki) |
+| v1.17 | SMTP geslo shranjeno v čistem besedilu v bazi (sprejeto tveganje S8; priporočena gesla za aplikacijo); dodana `\| safe` zaščita za interni SVG QR; email funkcija brez posebnih varnostnih tveganj |
+| v1.18 | Email header injection odpravljena (strip `\r\n` iz zadeve, From, To pred vstavljanjem v headers); Jinja2 `SandboxedEnvironment` za email predloge (preprečitev template injection pri user-supplied Jinja2 predlogah) |
 
 ---
 

@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.17 | Datum: 2026-03-03*
+*Različica 1.18 | Datum: 2026-03-05*
 
 ---
 
@@ -827,15 +827,15 @@ Git tagi morajo biti v formatu **semver** (`vMAJOR.MINOR.PATCH`), npr. `v1.12.0`
 | Trigger | Docker tagi |
 |---------|------------|
 | Push na `main` | `latest`, `main` |
-| Git tag `v1.17.0` | `1.17.0`, `1.17`, `1`, `latest` |
+| Git tag `v1.18.0` | `1.18.0`, `1.18`, `1`, `latest` |
 
-> **Opomba:** `v1.17` (brez patch) ni veljaven semver in workflow bo zatajil.
-> Vedno uporabite obliko `v1.17.0`.
+> **Opomba:** `v1.18` (brez patch) ni veljaven semver in workflow bo zatajil.
+> Vedno uporabite obliko `v1.18.0`.
 
 Za izdajo nove verzije:
 ```bash
-git tag v1.17.0
-git push origin v1.17.0
+git tag v1.18.0
+git push origin v1.18.0
 ```
 
 ### Docker tag v `docker-compose.yml`
@@ -921,7 +921,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (88) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (94) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1120,6 +1120,8 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | Validacija vloge na dovoljene vrednosti pri urejanju uporabnikov | v1.13 |
 | Začasno geslo ustreza politiki (16 znakov + posebni znaki) | v1.13 |
 | SMTP geslo shranjeno v bazi (nastavitve); priporočamo geslo za aplikacijo | v1.17 |
+| Email header injection zaščita (strip `\r\n` iz zadeve in naslovov) | v1.18 |
+| Jinja2 SandboxedEnvironment za renderiranje email predlog | v1.18 |
 
 ### Varnostno vzdrževanje
 
@@ -1153,7 +1155,8 @@ pytest tests/ -v
 | `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown | 15 |
 | `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
 | `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk, brez SMTP (mock smtplib) | 11 |
-| **Skupaj** | | **88** |
+| `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ | 6 |
+| **Skupaj** | | **94** |
 
 ### Testna infrastruktura
 
@@ -1166,4 +1169,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.17 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.18 + CI/CD*
