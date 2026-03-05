@@ -1,0 +1,136 @@
+{% extends "base.html" %}
+{% block title %}Predogled uvoza AKOS – {{ request.state.klub_oznaka or 'Radio klub' }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/izvoz">Izvoz / Uvoz</a></li>
+      <li class="breadcrumb-item"><a href="/izvoz/uvozi">Uvoz iz Excel</a></li>
+      <li class="breadcrumb-item active">Predogled AKOS veljavnosti</li>
+    </ol>
+  </nav>
+</div>
+
+{% set st_spremenjen = posodobljeni | selectattr('spremenjen') | list | length %}
+{% set st_nespremenjeni = posodobljeni | rejectattr('spremenjen') | list | length %}
+
+<div class="alert {% if st_spremenjen %}alert-info{% else %}alert-warning{% endif %} d-flex align-items-center gap-2">
+  <i class="bi bi-eye fs-5"></i>
+  <div>
+    <strong>Predogled uvoza AKOS:</strong>
+    <strong>{{ st_spremenjen }}</strong> članov bo posodobljenih,
+    <strong>{{ st_nespremenjeni }}</strong> brez spremembe,
+    <strong>{{ brez_ujemanja }}</strong> članov s klicnim znakom ni v AKOS datoteki.
+  </div>
+</div>
+
+{% if napake %}
+<div class="alert alert-warning">
+  <i class="bi bi-exclamation-triangle me-2"></i><strong>Opozorila pri razčlenjevanju:</strong>
+  <ul class="mb-0 mt-1">
+    {% for n in napake %}
+    <li class="small">{{ n }}</li>
+    {% endfor %}
+  </ul>
+</div>
+{% endif %}
+
+{% if posodobljeni | selectattr('spremenjen') | list %}
+<div class="card mb-3">
+  <div class="card-header bg-success text-white">
+    <i class="bi bi-calendar-check me-2"></i>Člani za posodobitev veljavnosti ({{ st_spremenjen }})
+  </div>
+  <div class="table-responsive card-body p-0">
+    <table class="table table-sm table-hover mb-0 align-middle">
+      <thead class="table-light">
+        <tr>
+          <th>Priimek</th>
+          <th>Ime</th>
+          <th>Klicni znak</th>
+          <th>Stara veljavnost</th>
+          <th></th>
+          <th>Nova veljavnost</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for c in posodobljeni %}
+        {% if c.spremenjen %}
+        <tr>
+          <td>{{ c.priimek }}</td>
+          <td>{{ c.ime }}</td>
+          <td><code>{{ c.klicni_znak }}</code></td>
+          <td class="text-muted">
+            {% if c.stara_veljavnost %}{{ c.stara_veljavnost.strftime('%d. %m. %Y') }}{% else %}<span class="text-muted">–</span>{% endif %}
+          </td>
+          <td class="text-center text-muted"><i class="bi bi-arrow-right"></i></td>
+          <td class="fw-semibold text-success">{{ c.nova_veljavnost.strftime('%d. %m. %Y') }}</td>
+        </tr>
+        {% endif %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+{% if posodobljeni | rejectattr('spremenjen') | list %}
+<div class="card mb-3">
+  <div class="card-header bg-light">
+    <button class="btn btn-link text-decoration-none p-0 text-secondary fw-semibold"
+            type="button" data-bs-toggle="collapse" data-bs-target="#nespremenjeniSection">
+      <i class="bi bi-check2-circle me-2"></i>Že aktualni – brez spremembe ({{ st_nespremenjeni }})
+      <i class="bi bi-chevron-down ms-1 small"></i>
+    </button>
+  </div>
+  <div class="collapse" id="nespremenjeniSection">
+    <div class="table-responsive card-body p-0">
+      <table class="table table-sm table-striped mb-0 align-middle">
+        <thead class="table-light">
+          <tr>
+            <th>Priimek</th>
+            <th>Ime</th>
+            <th>Klicni znak</th>
+            <th>Veljavnost (nespremenjena)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in posodobljeni %}
+          {% if not c.spremenjen %}
+          <tr class="text-muted">
+            <td>{{ c.priimek }}</td>
+            <td>{{ c.ime }}</td>
+            <td><code>{{ c.klicni_znak }}</code></td>
+            <td>{{ c.nova_veljavnost.strftime('%d. %m. %Y') }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+{% if brez_ujemanja > 0 %}
+<div class="alert alert-secondary small">
+  <i class="bi bi-info-circle me-2"></i>
+  <strong>{{ brez_ujemanja }}</strong> aktivnih članov s klicnim znakom ni bilo najdenih v AKOS datoteki –
+  njihova veljavnost RD ostane nespremenjena.
+</div>
+{% endif %}
+
+<div class="d-flex gap-2 mt-3">
+  {% if st_spremenjen > 0 %}
+  <form method="post" action="/izvoz/uvozi-akos-potrdi">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+    <button type="submit" class="btn btn-success">
+      <i class="bi bi-upload me-1"></i>Potrdi posodobitev ({{ st_spremenjen }} članov)
+    </button>
+  </form>
+  {% endif %}
+  <a href="/izvoz/uvozi" class="btn btn-outline-secondary">
+    <i class="bi bi-x-circle me-1"></i>Prekliči
+  </a>
+</div>
+{% endblock %}

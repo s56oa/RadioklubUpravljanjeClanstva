@@ -62,6 +62,7 @@
 | Evidenca vlog in funkcij člana z zgodovino | ✅ | v1.15 | ClanVloga model; Alembic 004; kartica na /clani/{id}; dodaj (editor+), izbriši (admin); nastavljive vloge v nastavitvah; Backup Excel list "Vloge"; 15 testov |
 | UPN QR koda za plačilo | ✅ | v1.16 | ZBS standard (19 polj, ISO-8859-2, kontrolna vsota); SVG prikaz v modalnem oknu; PNG prenos ({es/id}_{leto}.png); spremenljivke {leto}/{id}/{es} v predlogah; privzeta koda namena OTHR; pillow v requirements; 15 testov |
 | E-poštna obvestila (ročni pozivi iz UI) | ✅ | v1.17 | EmailPredloga model + Alembic 005; SMTP nastavitve v /nastavitve (starttls/ssl/plain); /obvestila router (editor+); 2 privzeti predlogi s QR kodo; pošiljanje posamezniku ali bulk vsem neplačnikom; embedded UPN QR PNG (base64); Jinja2 spremenljivke v predlogi; gumb na detail.html + seznam.html; 11 testov |
+| Uvoz veljavnosti RD iz AKOS registra | ✅ | v1.18 | 2-koračni flow (predogled → potrditev); identifikacija po klicnem znaku; stolpec "Velja do" → veljavnost_rd; prikaz sprememb (stara → nova); neujemajoči člani ostanejo nespremenjeni; audit log; 6 testov |
 
 ---
 
@@ -170,4 +171,4 @@ Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhn
 
 ---
 
-*Zadnja posodobitev: 2026-03-03 (v1.17)*
+*Zadnja posodobitev: 2026-03-05 (v1.18)*

@@ -1143,6 +1143,218 @@ async def uvozi_placila_potrdi(
     )
 
 
+# ---------------------------------------------------------------------------
+# AKOS uvoz veljavnosti RD
+# ---------------------------------------------------------------------------
+
+def _parse_akos_pregled(vsebina: bytes, db: Session) -> tuple[list[dict], int, list[str]]:
+    """Parsira AKOS Excel in vrne (posodobljeni, brez_ujemanja, napake).
+
+    posodobljeni – seznam dict z: priimek, ime, klicni_znak, stara_veljavnost, nova_veljavnost, spremenjen
+    brez_ujemanja – število aktivnih članov s KZ, ki niso v AKOS datoteki
+    napake – seznam opisov vrstic z napako (format datuma)
+    """
+    try:
+        wb = load_workbook(io.BytesIO(vsebina), read_only=True)
+        ws = wb.active
+        rows = list(ws.iter_rows(values_only=True))
+    except Exception:
+        raise ValueError("Datoteka ni veljavna Excel datoteka.")
+
+    if len(rows) < 2:
+        raise ValueError("Datoteka ne vsebuje podatkov (prazna ali samo glava).")
+
+    # Preveri glavo – pričakujemo vsaj stolpca Klicni znak in Velja do
+    header = [str(c).strip() if c else "" for c in rows[0]]
+    kz_idx = next((i for i, h in enumerate(header) if h.lower() == "klicni znak"), None)
+    vd_idx = next((i for i, h in enumerate(header) if h.lower() == "velja do"), None)
+    if kz_idx is None or vd_idx is None:
+        raise ValueError(
+            "Datoteka ne vsebuje pričakovanih stolpcev 'Klicni znak' in 'Velja do'."
+        )
+
+    # Zgradi lookup: klicni_znak (uppercase) → nova veljavnost
+    akos: dict[str, date] = {}
+    napake: list[str] = []
+    for i, row in enumerate(rows[1:], start=2):
+        kz_val = str(row[kz_idx]).strip().upper() if row[kz_idx] else ""
+        vd_val = str(row[vd_idx]).strip() if row[vd_idx] else ""
+        if not kz_val or not vd_val:
+            continue
+        try:
+            nova = datetime.strptime(vd_val, "%d.%m.%Y").date()
+        except ValueError:
+            napake.append(f"Vrstica {i}: neveljaven datum '{vd_val}' za {kz_val}")
+            continue
+        akos[kz_val] = nova
+
+    # Primerjaj z aktivnimi člani v bazi (samo tisti s klicnim znakom)
+    clani_s_kz = (
+        db.query(Clan)
+        .filter(Clan.aktiven == True, Clan.klicni_znak != None)
+        .all()
+    )
+
+    posodobljeni: list[dict] = []
+    brez_ujemanja = 0
+
+    for c in clani_s_kz:
+        kz = (c.klicni_znak or "").strip().upper()
+        if kz in akos:
+            nova = akos[kz]
+            posodobljeni.append({
+                "clan_id": c.id,
+                "priimek": c.priimek,
+                "ime": c.ime,
+                "klicni_znak": c.klicni_znak,
+                "stara_veljavnost": c.veljavnost_rd,
+                "nova_veljavnost": nova,
+                "spremenjen": c.veljavnost_rd != nova,
+            })
+        else:
+            brez_ujemanja += 1
+
+    return posodobljeni, brez_ujemanja, napake
+
+
+def _uvozi_akos_workbook(vsebina: bytes, db: Session) -> tuple[int, int]:
+    """Posodobi veljavnost_rd za ujemajoče se člane. Vrne (posodobljeni, preskoceni)."""
+    posodobljeni_list, _, _ = _parse_akos_pregled(vsebina, db)
+
+    posodobljeni = 0
+    preskoceni = 0
+    for zapis in posodobljeni_list:
+        if not zapis["spremenjen"]:
+            preskoceni += 1
+            continue
+        clan = db.query(Clan).filter(Clan.id == zapis["clan_id"]).first()
+        if clan:
+            clan.veljavnost_rd = zapis["nova_veljavnost"]
+            posodobljeni += 1
+    db.commit()
+    return posodobljeni, preskoceni
+
+
+@router.post("/uvozi-akos", response_class=HTMLResponse)
+async def uvozi_akos_pregled(
+    request: Request,
+    datoteka: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+    if not is_admin(user):
+        return RedirectResponse(url="/izvoz", status_code=302)
+
+    def _akos_err(napaka: str) -> Response:
+        return templates.TemplateResponse(
+            request,
+            "izvoz/uvoz.html",
+            {
+                "request": request, "user": user, "is_admin": True,
+                "napaka_akos": napaka,
+                "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
+                "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
+            },
+        )
+
+    ime = (datoteka.filename or "").lower()
+    if not any(ime.endswith(p) for p in DOVOLJENE_PRIPONE):
+        return _akos_err("Dovoljena je samo datoteka .xlsx.")
+
+    vsebina = await datoteka.read()
+    if len(vsebina) > MAX_UPLOAD_BYTES:
+        return _akos_err("Datoteka je prevelika (max 10 MB).")
+
+    try:
+        posodobljeni, brez_ujemanja, napake = _parse_akos_pregled(vsebina, db)
+    except ValueError as e:
+        return _akos_err(str(e))
+
+    os.makedirs(TMP_DIR, exist_ok=True)
+    uvoz_uuid = str(uuid_lib.uuid4())
+    tmp_pot = os.path.join(TMP_DIR, f"akos_{uvoz_uuid}.xlsx")
+    with open(tmp_pot, "wb") as f:
+        f.write(vsebina)
+    request.session["_akos_uuid"] = uvoz_uuid
+
+    return templates.TemplateResponse(
+        request,
+        "izvoz/uvoz-akos-pregled.html",
+        {
+            "request": request, "user": user, "is_admin": True,
+            "posodobljeni": posodobljeni,
+            "brez_ujemanja": brez_ujemanja,
+            "napake": napake,
+        },
+    )
+
+
+@router.post("/uvozi-akos-potrdi", response_class=HTMLResponse)
+async def uvozi_akos_potrdi(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+    if not is_admin(user):
+        return RedirectResponse(url="/izvoz", status_code=302)
+
+    uvoz_uuid = request.session.get("_akos_uuid")
+
+    def _potrdi_err(napaka: str) -> Response:
+        return templates.TemplateResponse(
+            request,
+            "izvoz/uvoz.html",
+            {
+                "request": request, "user": user, "is_admin": True,
+                "napaka_akos": napaka,
+                "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
+                "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
+            },
+        )
+
+    if not uvoz_uuid:
+        return _potrdi_err("Seja je potekla. Prosim naložite datoteko znova.")
+
+    tmp_pot = os.path.join(TMP_DIR, f"akos_{uvoz_uuid}.xlsx")
+    if not os.path.exists(tmp_pot):
+        return _potrdi_err("Začasna datoteka ni najdena. Prosim naložite datoteko znova.")
+
+    posodobljeni = 0
+    preskoceni = 0
+    try:
+        with open(tmp_pot, "rb") as f:
+            vsebina = f.read()
+        posodobljeni, preskoceni = _uvozi_akos_workbook(vsebina, db)
+        ip = request.client.host if request.client else None
+        log_akcija(
+            db, user.get("uporabnisko_ime") if user else None,
+            "uvoz_akos",
+            f"{posodobljeni} posodobljenih, {preskoceni} brez spremembe",
+            ip=ip,
+        )
+    finally:
+        if os.path.exists(tmp_pot):
+            os.remove(tmp_pot)
+        request.session.pop("_akos_uuid", None)
+
+    return templates.TemplateResponse(
+        request,
+        "izvoz/uvoz.html",
+        {
+            "request": request, "user": user, "is_admin": True,
+            "sporocilo_akos": f"Uvoz AKOS zaključen: {posodobljeni} posodobljenih, {preskoceni} brez spremembe.",
+            "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
+            "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
+        },
+    )
+
+
 @router.post("/uvozi-placila-nastavitve")
 async def uvozi_placila_nastavitve_shrani(
     request: Request,

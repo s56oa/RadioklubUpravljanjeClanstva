@@ -177,5 +177,49 @@
 </div>
 {% endif %}
 
+
+{# === Uvoz AKOS veljavnosti RD === #}
+<div class="col-lg-6">
+  <div class="card">
+    <div class="card-header bg-primary text-white">
+      <i class="bi bi-broadcast me-2"></i>Uvoz veljavnosti RD iz AKOS registra
+    </div>
+    <div class="card-body">
+      {% if sporocilo_akos %}
+      <div class="alert alert-success">
+        <i class="bi bi-check-circle me-2"></i>{{ sporocilo_akos }}
+      </div>
+      {% endif %}
+      {% if napaka_akos %}
+      <div class="alert alert-danger">
+        <i class="bi bi-exclamation-triangle me-2"></i>{{ napaka_akos }}
+      </div>
+      {% endif %}
+
+      <div class="alert alert-info small">
+        <i class="bi bi-info-circle me-2"></i>
+        <strong>Navodila:</strong> Naložite Excel datoteko iz AKOS registra radioamaterjev
+        (<em>Registri Radioamaterji</em>). Sistem bo uskladil stolpec
+        <code>Klicni znak</code> s člani v bazi in posodobil datum veljavnosti RD
+        (stolpec <code>Velja do</code>). Identifikacija poteka izključno po klicnem znaku.
+      </div>
+
+      <form method="post" action="/izvoz/uvozi-akos" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <div class="mb-3">
+          <label class="form-label">Excel datoteka (.xlsx) – AKOS Registri Radioamaterji</label>
+          <input type="file" name="datoteka" class="form-control" accept=".xlsx" required>
+        </div>
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn btn-primary">
+            <i class="bi bi-upload me-1"></i>Uvozi veljavnosti RD
+          </button>
+          <a href="/izvoz" class="btn btn-outline-secondary">Prekliči</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 </div>
 {% endblock %}
