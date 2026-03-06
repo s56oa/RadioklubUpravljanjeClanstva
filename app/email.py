@@ -2,9 +2,8 @@
 
 Podprti načini SMTP: starttls (port 587), ssl (port 465), plain (port 25).
 """
-import base64
-import io
 import smtplib
+from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -31,8 +30,8 @@ def get_smtp_nastavitve(db: Session) -> dict:
     }
 
 
-def _qr_img_tag(clan: Clan, leto: int, db: Session) -> str:
-    """Generira UPN QR PNG in vrne HTML <img> tag z base64 embedded sliko."""
+def _qr_png_bytes(clan: Clan, leto: int, db: Session) -> bytes:
+    """Generira UPN QR PNG in vrne raw bytes (za CID inline attachment)."""
     iban = get_nastavitev(db, "klub_iban", "")
     ime_kluba = get_nastavitev(db, "klub_ime", "")
     ulica_kluba = get_nastavitev(db, "klub_naslov", "")
@@ -52,7 +51,7 @@ def _qr_img_tag(clan: Clan, leto: int, db: Session) -> str:
     zneski = get_clanarina_zneski(db)
     znesek = zneski.get(clan.tip_clanstva) if clan.tip_clanstva else None
 
-    png_bytes = generiraj_upn_png(
+    return generiraj_upn_png(
         ime_placnika=f"{clan.priimek} {clan.ime}",
         ulica_placnika=clan.naslov_ulica or "",
         kraj_placnika=clan.naslov_posta or "",
@@ -65,8 +64,6 @@ def _qr_img_tag(clan: Clan, leto: int, db: Session) -> str:
         znesek_eur=znesek,
         namen=namen,
     )
-    b64 = base64.b64encode(png_bytes).decode("ascii")
-    return f'<img src="data:image/png;base64,{b64}" alt="UPN QR koda" style="max-width:200px;">'
 
 
 def _render_predloga(telo_html: str, clan: Clan, leto: int, qr_img_tag: str) -> str:
@@ -118,8 +115,11 @@ def posli_email(
 
     Vrže smtplib.SMTPException ali ValueError ob napaki pri pošiljanju.
     """
-    qr_tag = _qr_img_tag(clan, leto, db)
-    html_telo = _render_predloga(telo_predloga, clan, leto, qr_tag)
+    qr_bytes = _qr_png_bytes(clan, leto, db)
+    # CID referenca – email odjemalci (Gmail, Outlook, Apple Mail) ne prikazujejo
+    # data: URI slik, podpirajo pa CID inline attachmente (RFC 2392)
+    qr_cid_tag = '<img src="cid:qr_koda" alt="UPN QR koda" style="max-width:200px;">'
+    html_telo = _render_predloga(telo_predloga, clan, leto, qr_cid_tag)
 
     # Render zadeve (enostavna string zamenjava, iste spremenljivke kot telo)
     veljavnost_rd_str = (
@@ -148,11 +148,17 @@ def posli_email(
     od = smtp_nastavitve["od"].replace("\r", "").replace("\n", "").strip()
     na = (clan.elektronska_posta or "").replace("\r", "").replace("\n", "").strip()
 
-    msg = MIMEMultipart("alternative")
+    # multipart/related omogoča CID inline attachmente (RFC 2387)
+    msg = MIMEMultipart("related")
     msg["Subject"] = zadeva
     msg["From"] = od
     msg["To"] = na
     msg.attach(MIMEText(html_telo, "html", "utf-8"))
+
+    qr_img = MIMEImage(qr_bytes, "png")
+    qr_img.add_header("Content-ID", "<qr_koda>")
+    qr_img.add_header("Content-Disposition", "inline", filename="qr_koda.png")
+    msg.attach(qr_img)
 
     host = smtp_nastavitve["host"]
     port = smtp_nastavitve["port"]
