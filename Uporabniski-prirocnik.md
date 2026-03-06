@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.19 | Datum: 2026-03-05*
+*Različica 1.20 | Datum: 2026-03-06*
 
 ---
 
@@ -646,7 +646,7 @@ Nastavitve za UPN QR kodo uredite v **Nastavitve → Nastavitve UPN QR kode**:
 
 Dostopno za urednike in admin: navigacija → **Obvestila**.
 
-Funkcija omogoča pošiljanje personaliziranih e-poštnih pozivov k plačilu članarine. Vsak prejemnik dobi svojo **UPN QR kodo** za plačilo, embedded neposredno v e-pošto.
+Funkcija omogoča pošiljanje personaliziranih e-poštnih pozivov. Za plačilne predloge vsak prejemnik dobi svojo **UPN QR kodo** za plačilo, embedded neposredno v e-pošto (CID inline, združljivo z Gmail, Outlook, Apple Mail).
 
 > **Predpogoj:** V **Nastavitve → E-pošta (SMTP)** mora biti nastavljeni SMTP strežnik.
 
@@ -663,11 +663,19 @@ Privzetih predlog ni mogoče izbrisati; urediti jih je mogoče.
 
 ### Upravljanje predlog
 
-Na strani *Obvestila* so prikazane vse predloge s tipom (Privzeta / Lastna).
+Na strani *Obvestila* so prikazane vse predloge s tipom (Privzeta / Lastna) in oznako **QR** za predloge s priloženo plačilno kodo.
 
-- **Nova predloga** – gumb zgoraj desno; izpolnite naziv, zadevo in HTML vsebino.
-- **Uredi** – uredite vsebino obstoječe predloge.
+- **Nova predloga** – gumb zgoraj desno; izpolnite naziv, zadevo, HTML vsebino in potrdite ali je vključena QR koda.
+- **Uredi** – uredite vsebino obstoječe predloge, vključno z nastavitvijo QR kode.
 - **Izbriši** – možno samo za lastne (neprivzete) predloge.
+
+#### Vključi UPN QR kodo za plačilo
+
+Vsaka predloga ima možnost **Vključi UPN QR kodo za plačilo** (checkbox):
+- ✅ Obkljukano – ob pošiljanju se v sporočilo vstavi personalizirana QR koda za plačilo; spremenljivka `{{ qr_koda }}` se nadomesti z inline sliko
+- ☐ Ni obkljukano – `{{ qr_koda }}` se nadomesti s praznim nizom; primerno za obvestila ki niso plačilne narave (potečena RD, potrditev podatkov …)
+
+Privzeto so QR kodo vključene **Poziv k plačilu članarine** in **Opomnik za zamudnike**; ostale tri privzete predloge je nimajo.
 
 #### Spremenljivke v predlogah
 
@@ -679,7 +687,7 @@ V zadevi in telesu e-pošte so na voljo Jinja2 spremenljivke, ki se ob pošiljan
 | `{{ priimek }}` | Priimek prejemnika |
 | `{{ klicni_znak }}` | Klicni znak prejemnika (prazen niz, če ni vnesen) |
 | `{{ leto }}` | Leto za katero se pošilja poziv |
-| `{{ qr_koda }}` | HTML `<img>` tag z UPN QR kodo (base64 PNG, 200 px) |
+| `{{ qr_koda }}` | HTML `<img>` tag z UPN QR kodo (CID inline PNG, 200 px) – samo če je predloga nastavljena z opcijo "Vključi QR kodo" |
 | `{{ naslov_ulica }}` | Ulica in hišna številka |
 | `{{ naslov_posta }}` | Poštna številka in kraj |
 | `{{ tip_clanstva }}` | Tip članstva (npr. Osebni, Mladi) |

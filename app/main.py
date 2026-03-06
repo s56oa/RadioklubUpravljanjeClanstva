@@ -1,3 +1,4 @@
+import glob
 import os
 import time
 import hashlib
@@ -35,8 +36,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.19"
-APP_RELEASE_DATE = "2026-03-05"
+APP_VERSION = "1.20"
+APP_RELEASE_DATE = "2026-03-06"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -225,6 +226,12 @@ def _run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
+    # Počisti zaostale začasne Excel datoteke iz prejšnjih sej uvoza
+    for _f in glob.glob("data/tmp/*.xlsx"):
+        try:
+            os.remove(_f)
+        except OSError:
+            pass
     _nastavi_logging()
     _run_migrations()
     db = SessionLocal()

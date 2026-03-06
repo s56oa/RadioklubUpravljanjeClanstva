@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.19 | Datum: 2026-03-05*
+*Različica 1.20 | Datum: 2026-03-06*
 
 ---
 
@@ -63,7 +63,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 | Migracije | Alembic | 1.13+ |
 | Logging | RotatingFileHandler → data/app.log (5 MB × 5) | — |
 | Kontekst kluba | KlubContextMiddleware → request.state | — |
-| E-pošta | smtplib (stdlib) + Jinja2 render + base64 PNG embed | — |
+| E-pošta | smtplib (stdlib) + Jinja2 render + CID inline PNG embed | — |
 | Frontend | Bootstrap 5.3 + DataTables + Bootstrap Icons + Chart.js | CDN |
 | Excel | openpyxl | 3.1 |
 
@@ -80,8 +80,8 @@ UpravljanjeClanstva/
 │   ├── csrf.py           – CSRF token zaščita
 │   ├── audit_log.py      – log_akcija() helper
 │   ├── upn.py            – UPN QR generiranje (ZBS standard, segno)
-│   ├── email.py          – SMTP pošiljanje, UPN QR base64 embed, Jinja2 render predlog
-│   ├── email_predloge_seed.py – seed 5 predlog (2 privzeti + 3 tematski: potečena RD, podatki člana, univerzalna)
+│   ├── email.py          – SMTP pošiljanje, UPN QR CID inline embed, Jinja2 render predlog, pogojni QR (vkljuci_qr)
+│   ├── email_predloge_seed.py – seed 5 predlog (2 plačilni z QR, 3 tematski: potečena RD, podatki člana, univerzalna)
 │   ├── routers/          – FastAPI routerji (clani, clanarine, aktivnosti, dashboard, izvoz, vloge, upn, obvestila, …)
 │   ├── templates/        – Jinja2 HTML predloge (clani/, clanarine/, aktivnosti/, dashboard/, obvestila/, …)
 │   └── static/           – CSS, ikone
@@ -94,7 +94,8 @@ UpravljanjeClanstva/
 │       ├── 003_login_poskusi.py
 │       ├── 004_clan_vloge.py
 │       ├── 005_email_predloge.py
-│       └── 006_indeksi.py
+│       ├── 006_indeksi.py
+│       └── 007_email_predloge_qr.py
 ├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
 │   ├── clanstvo.db
 │   └── app.log           – rotating log (5 MB × 5)
@@ -1042,8 +1043,9 @@ alembic_command.upgrade(cfg, "head")
 | `004` | Nova tabela `clan_vloge` (evidenca vlog in funkcij člana z zgodovino) |
 | `005` | Nova tabela `email_predloge` (predloge za e-poštna obvestila) |
 | `006` | DB indeksi: `ix_clani_aktiven`, `ix_clanarine_leto`, `ix_aktivnosti_leto` |
+| `007` | Novo polje `email_predloge.vkljuci_qr` (Boolean, server_default=0) – per-template konfiguracija QR kode |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`006`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`007`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 

@@ -42,7 +42,18 @@
           placeholder="HTML vsebina e-pošte...">{{ predloga.telo_html if predloga else '' }}</textarea>
         <div class="form-text">
           Spremenljivke: <code>&#123;&#123; ime &#125;&#125;</code>, <code>&#123;&#123; priimek &#125;&#125;</code>, <code>&#123;&#123; klicni_znak &#125;&#125;</code>, <code>&#123;&#123; leto &#125;&#125;</code>,
-          <code>&#123;&#123; qr_koda &#125;&#125;</code> (UPN QR slika)
+          <code>&#123;&#123; qr_koda &#125;&#125;</code> (UPN QR slika – vključena samo če je spodnja možnost obkljukana)
+        </div>
+      </div>
+
+      <div class="mb-3">
+        <div class="form-check">
+          <input class="form-check-input" type="checkbox" name="vkljuci_qr" id="vkljuci_qr" value="true"
+            {% if predloga and predloga.vkljuci_qr %}checked{% endif %}>
+          <label class="form-check-label" for="vkljuci_qr">
+            <i class="bi bi-qr-code me-1"></i>Vključi UPN QR kodo za plačilo
+          </label>
+          <div class="form-text">Ob pošiljanju bo v sporočilo vstavljena personalizirana QR koda za plačilo članarine.</div>
         </div>
       </div>
 

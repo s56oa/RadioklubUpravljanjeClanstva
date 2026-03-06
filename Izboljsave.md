@@ -65,6 +65,9 @@
 | Uvoz veljavnosti RD iz AKOS registra | ✅ | v1.18 | 2-koračni flow (predogled → potrditev); identifikacija po klicnem znaku; stolpec "Velja do" → veljavnost_rd; prikaz sprememb (stara → nova); neujemajoči člani ostanejo nespremenjeni; audit log; 6 testov |
 | Varnostni popravki in indeksi | ✅ | v1.19 | `backup-excel` omejen na admin; IDOR zaščita pri brisanju članarine (clan_id validacija); try/except za neveljavni datum RD in E.S. številko (ne 500); Alembic 006: indeksi `Clan.aktiven`, `Clanarina.leto`, `Aktivnost.leto` |
 | Email predloge – razširitve | ✅ | v1.19 | 3 nove privzete predloge (potečena RD, podatki člana za potrditev, univerzalna); idempotentni seed po nazivu; vse Clan spremenljivke v predlogah (`veljavnost_rd` kot DD. MM. LLLL, vsa kontaktna polja); 5 bulk filtrov (neplačniki, rd_potekla, rd_kmalu, vsi_aktivni, vsi) |
+| QR koda v emailu – CID inline + per-template konfiguracija | ✅ | v1.20 | CID inline attachment (`MIMEMultipart("related")`, `MIMEImage`, `Content-ID: <qr_koda>`) namesto `data:` URI (združljivost z Gmail/Outlook/Apple Mail); polje `vkljuci_qr` na `EmailPredloga` (Alembic 007); checkbox v forma.html; QR značka v seznam.html; seed upsert; privzeto True za plačilni predlogi, False za ostale |
+| Varnostni popravki | ✅ | v1.20 | Opozorilo za SMTP "plain" način v nastavitvenem UI; generično SMTP napako sporočilo (brez razkritja internih detajlov); `data-geslo` namesto inline JS pri kopiranju začasnega gesla; reset geslo `_generiraj_geslo(12)` → `(16)` (bug v reset handlerju); čiščenje `data/tmp/*.xlsx` ob zagonu |
+| Modernizacija kode | ✅ | v1.20 | `datetime.utcnow()` → `datetime.now(timezone.utc)` v vseh naših datotekah (4 datoteke); `alembic.ini path_separator = os`; pravopisna popravka "členarine" → "članarine" |
 
 ---
 
@@ -167,4 +170,4 @@ Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhn
 
 ---
 
-*Zadnja posodobitev: 2026-03-05 (v1.18)*
+*Zadnja posodobitev: 2026-03-06 (v1.20)*

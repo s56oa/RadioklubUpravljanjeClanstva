@@ -44,6 +44,11 @@
               {% else %}
               <span class="badge bg-light text-dark border">Lastna</span>
               {% endif %}
+              {% if p.vkljuci_qr %}
+              <span class="badge bg-warning text-dark ms-1" title="Vsebuje UPN QR kodo za plačilo">
+                <i class="bi bi-qr-code"></i> QR
+              </span>
+              {% endif %}
             </td>
             <td class="text-center">
               <a href="/obvestila/posli?predloga_id={{ p.id }}" class="btn btn-outline-primary btn-sm me-1">

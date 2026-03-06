@@ -1,13 +1,13 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-05 (v1.19)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-06 (v1.20)*
 
 ---
 
 ## Povzetek
 
 Aplikacija je primarna za uporabo v zaupljivem lokalnem okolju (radioklub, domače omrežje, VPN).
-Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). V v1.19 so bile odpravljene tri varnostne pomanjkljivosti: backup Excel omejen na admin, IDOR zaščita pri brisanju članarine in validacija formata vhodnih podatkov. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
+Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). V v1.19 so bile odpravljene tri varnostne pomanjkljivosti: backup Excel omejen na admin, IDOR zaščita pri brisanju članarine in validacija formata vhodnih podatkov. V v1.20 so bile izvedene štiri varnostne izboljšave: opozorilo za SMTP "plain" način v UI, generično SMTP napako sporočilo, `data-geslo` namesto inline JS pri kopiranju gesla in popravek dolžine resetiranega gesla (12 → 16 znakov). Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
 
 ---
 
@@ -50,6 +50,11 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Backup Excel (`/izvoz/backup-excel`) omejen samo na admin (preprečitev dostopa uredniku) | ✅ | v1.19 |
 | IDOR zaščita pri brisanju članarine (`clan_id` validacija prepreči brisanje tuje clanarine) | ✅ | v1.19 |
 | Validacija formata datuma veljavnosti RD in ES-številke (vrne 200 z napako, ne 500) | ✅ | v1.19 |
+| Opozorilo za SMTP "plain" način v nastavitvenem UI (nešifriran prenos) | ✅ | v1.20 |
+| Generično SMTP napako sporočilo v UI (podrobnosti samo v app.log, ne uporabniku) | ✅ | v1.20 |
+| `data-geslo` atribut namesto inline JS pri kopiranju začasnega gesla | ✅ | v1.20 |
+| Reset geslo 12 → 16 znakov (popravek hrošča v reset handlerju, upoštevanje politike) | ✅ | v1.20 |
+| Čiščenje `data/tmp/*.xlsx` ob zagonu (zaostale datoteke z osebnimi podatki) | ✅ | v1.20 |
 
 ---
 
@@ -215,6 +220,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.17 | SMTP geslo shranjeno v čistem besedilu v bazi (sprejeto tveganje S8; priporočena gesla za aplikacijo); dodana `\| safe` zaščita za interni SVG QR; email funkcija brez posebnih varnostnih tveganj |
 | v1.18 | Email header injection odpravljena (strip `\r\n` iz zadeve, From, To pred vstavljanjem v headers); Jinja2 `SandboxedEnvironment` za email predloge (preprečitev template injection pri user-supplied Jinja2 predlogah) |
 | v1.19 | `/backup-excel` omejen samo na admin; IDOR zaščita pri brisanju članarine (`clan_id` validacija); validacija formata datuma veljavnosti RD in ES-številke pri vnosu/urejanju člana; DB indeksi za `clani.aktiven`, `clanarine.leto`, `aktivnosti.leto` (Alembic 006) |
+| v1.20 | Opozorilo za SMTP "plain" način v nastavitvenem UI; generično SMTP napako sporočilo (polna napaka samo v `app.log`); `data-geslo` atribut namesto inline JS `onclick` pri kopiranju začasnega gesla (preprečitev potencialnega JS injection); reset geslo `_generiraj_geslo(12)` → `(16)` (popravek hrošča – reset handler ni upošteval politike min. 14 znakov); čiščenje `data/tmp/*.xlsx` ob zagonu (odstranitev zaostalih datotek z osebnimi podatki) |
 
 ---
 

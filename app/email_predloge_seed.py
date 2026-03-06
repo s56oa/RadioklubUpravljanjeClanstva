@@ -1,5 +1,5 @@
 """Seed privzetih e-poštnih predlog ob zagonu aplikacije."""
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
@@ -132,47 +132,56 @@ _PRIVZETE_PREDLOGE = [
         "naziv": "Poziv k plačilu članarine",
         "zadeva": "Poziv k plačilu članarine za leto {{ leto }}",
         "telo_html": _PREDLOGA_POZIV,
+        "vkljuci_qr": True,
     },
     {
         "naziv": "Opomnik za zamudnike",
         "zadeva": "Opomnik – neplačana članarina za leto {{ leto }}",
         "telo_html": _PREDLOGA_OPOMNIK,
+        "vkljuci_qr": True,
     },
     {
         "naziv": "Potečena veljavnost radijskega dovoljenja",
         "zadeva": "Obvestilo o potečeni veljavnosti radijskega dovoljenja – {{ priimek }} {{ ime }}",
         "telo_html": _PREDLOGA_RD,
+        "vkljuci_qr": False,
     },
     {
         "naziv": "Potrdi podatke člana",
         "zadeva": "Prosimo preverite vaše podatke v evidenci kluba",
         "telo_html": _PREDLOGA_PODATKI,
+        "vkljuci_qr": False,
     },
     {
         "naziv": "Univerzalna predloga",
         "zadeva": "Obvestilo kluba – {{ priimek }} {{ ime }}",
         "telo_html": _PREDLOGA_UNIVERZALNA,
+        "vkljuci_qr": False,
     },
 ]
 
 
 def seed_predloge(db: Session) -> None:
-    """Ustvari privzete predloge, ki še ne obstajajo (idempotentno po nazivu)."""
-    obstoječi_nazivi = {
-        r[0] for r in db.query(EmailPredloga.naziv).all()
+    """Ustvari privzete predloge, ki še ne obstajajo; posodobi vkljuci_qr obstoječih."""
+    obstoječe = {
+        p.naziv: p for p in db.query(EmailPredloga).filter(EmailPredloga.je_privzeta == True).all()
     }
-    zdaj = datetime.utcnow()
-    nove = [
-        EmailPredloga(
-            naziv=p["naziv"],
-            zadeva=p["zadeva"],
-            telo_html=p["telo_html"],
-            je_privzeta=True,
-            created_at=zdaj,
-        )
-        for p in _PRIVZETE_PREDLOGE
-        if p["naziv"] not in obstoječi_nazivi
-    ]
-    if nove:
-        db.add_all(nove)
+    zdaj = datetime.now(timezone.utc)
+    spremenjeno = False
+    for p in _PRIVZETE_PREDLOGE:
+        if p["naziv"] in obstoječe:
+            # Posodobi vkljuci_qr na obstoječi predlogi (migracija na vkljuci_qr)
+            obstoječe[p["naziv"]].vkljuci_qr = p["vkljuci_qr"]
+            spremenjeno = True
+        else:
+            db.add(EmailPredloga(
+                naziv=p["naziv"],
+                zadeva=p["zadeva"],
+                telo_html=p["telo_html"],
+                je_privzeta=True,
+                vkljuci_qr=p["vkljuci_qr"],
+                created_at=zdaj,
+            ))
+            spremenjeno = True
+    if spremenjeno:
         db.commit()

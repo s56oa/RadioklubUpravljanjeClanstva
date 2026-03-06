@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
 from sqlalchemy import Column, Integer, String, Boolean, Date, DateTime, Float, ForeignKey, Table, Index, Text
 from sqlalchemy.orm import relationship
@@ -185,4 +185,5 @@ class EmailPredloga(Base):
     zadeva = Column(String, nullable=False)
     telo_html = Column(Text, nullable=False)
     je_privzeta = Column(Boolean, default=False, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    vkljuci_qr = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)

@@ -181,7 +181,7 @@ async def reset_geslo(request: Request, uid: int, db: Session = Depends(get_db),
     if not u:
         return RedirectResponse(url="/uporabniki", status_code=302)
 
-    novo_geslo = _generiraj_geslo(12)
+    novo_geslo = _generiraj_geslo(16)
     u.geslo_hash = hash_geslo(novo_geslo)
     db.commit()
 

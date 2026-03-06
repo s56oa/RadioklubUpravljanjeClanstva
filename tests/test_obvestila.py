@@ -1,6 +1,6 @@
 """Testi za /obvestila router – upravljanje predlog in pošiljanje emailov."""
 import re
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from unittest.mock import MagicMock, patch
 
 from app.auth import hash_geslo
@@ -60,7 +60,7 @@ def _nova_predloga(db, naziv="Testna predloga", je_privzeta=False):
         zadeva="Zadeva {{ leto }}",
         telo_html="<p>Pozdravljeni {{ priimek }}, leto {{ leto }}. {{ qr_koda }}</p>",
         je_privzeta=je_privzeta,
-        created_at=datetime.utcnow(),
+        created_at=datetime.now(timezone.utc),
     )
     db.add(p)
     db.commit()

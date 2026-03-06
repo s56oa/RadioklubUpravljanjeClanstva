@@ -27,11 +27,17 @@
       <p class="mb-2 small">Sporočite geslo uporabniku. Prikazano bo samo enkrat.</p>
       <div class="input-group">
         <code class="form-control bg-light fs-5 fw-bold" id="zacasnoGeslo">{{ zacasno_geslo }}</code>
-        <button type="button" class="btn btn-outline-secondary"
-                onclick="navigator.clipboard.writeText('{{ zacasno_geslo }}'); this.innerHTML='<i class=\'bi bi-check\'></i> Kopirano'">
+        <button type="button" class="btn btn-outline-secondary" id="btnKopiraiGeslo"
+                data-geslo="{{ zacasno_geslo }}">
           <i class="bi bi-clipboard"></i> Kopiraj
         </button>
       </div>
+      <script>
+        document.getElementById('btnKopiraiGeslo').addEventListener('click', function () {
+          navigator.clipboard.writeText(this.dataset.geslo);
+          this.innerHTML = '<i class="bi bi-check"></i> Kopirano';
+        });
+      </script>
     </div>
     {% endif %}
 

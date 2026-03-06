@@ -109,6 +109,12 @@
           </div>
           {% endfor %}
         </div>
+        {% if nas.get('smtp_nacin') == 'plain' %}
+        <div class="alert alert-danger mt-3 mb-0 py-2 small">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>
+          <strong>Varnostno opozorilo:</strong> Način <code>plain</code> ne šifrira prenosa. SMTP geslo in celotna vsebina e-pošte (vključno z osebnimi podatki članov) se prenašata v jasnem besedilu. Priporočamo <code>starttls</code> (port 587) ali <code>ssl</code> (port 465).
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>

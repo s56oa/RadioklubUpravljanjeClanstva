@@ -110,16 +110,21 @@ def posli_email(
     leto: int,
     smtp_nastavitve: dict,
     db: Session,
+    vkljuci_qr: bool = False,
 ) -> None:
-    """Pošlje personalizirani e-mail z embedded UPN QR kodo.
+    """Pošlje personalizirani e-mail, opcijsko z embedded UPN QR kodo.
 
     Vrže smtplib.SMTPException ali ValueError ob napaki pri pošiljanju.
     """
-    qr_bytes = _qr_png_bytes(clan, leto, db)
-    # CID referenca – email odjemalci (Gmail, Outlook, Apple Mail) ne prikazujejo
-    # data: URI slik, podpirajo pa CID inline attachmente (RFC 2392)
-    qr_cid_tag = '<img src="cid:qr_koda" alt="UPN QR koda" style="max-width:200px;">'
-    html_telo = _render_predloga(telo_predloga, clan, leto, qr_cid_tag)
+    if vkljuci_qr:
+        qr_bytes = _qr_png_bytes(clan, leto, db)
+        # CID referenca – email odjemalci (Gmail, Outlook, Apple Mail) ne prikazujejo
+        # data: URI slik, podpirajo pa CID inline attachmente (RFC 2392)
+        qr_img_tag = '<img src="cid:qr_koda" alt="UPN QR koda" style="max-width:200px;">'
+    else:
+        qr_bytes = None
+        qr_img_tag = ""
+    html_telo = _render_predloga(telo_predloga, clan, leto, qr_img_tag)
 
     # Render zadeve (enostavna string zamenjava, iste spremenljivke kot telo)
     veljavnost_rd_str = (
@@ -148,17 +153,18 @@ def posli_email(
     od = smtp_nastavitve["od"].replace("\r", "").replace("\n", "").strip()
     na = (clan.elektronska_posta or "").replace("\r", "").replace("\n", "").strip()
 
-    # multipart/related omogoča CID inline attachmente (RFC 2387)
-    msg = MIMEMultipart("related")
+    # multipart/related omogoča CID inline attachmente (RFC 2387); brez QR zadostuje alternative
+    msg = MIMEMultipart("related" if vkljuci_qr else "alternative")
     msg["Subject"] = zadeva
     msg["From"] = od
     msg["To"] = na
     msg.attach(MIMEText(html_telo, "html", "utf-8"))
 
-    qr_img = MIMEImage(qr_bytes, "png")
-    qr_img.add_header("Content-ID", "<qr_koda>")
-    qr_img.add_header("Content-Disposition", "inline", filename="qr_koda.png")
-    msg.attach(qr_img)
+    if vkljuci_qr and qr_bytes:
+        qr_img = MIMEImage(qr_bytes, "png")
+        qr_img.add_header("Content-ID", "<qr_koda>")
+        qr_img.add_header("Content-Disposition", "inline", filename="qr_koda.png")
+        msg.attach(qr_img)
 
     host = smtp_nastavitve["host"]
     port = smtp_nastavitve["port"]

@@ -90,6 +90,7 @@ async def nova_predloga_post(
     naziv: str = Form(...),
     zadeva: str = Form(...),
     telo_html: str = Form(...),
+    vkljuci_qr: bool = Form(False),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -97,13 +98,14 @@ async def nova_predloga_post(
     if redirect:
         return redirect
 
-    from datetime import datetime
+    from datetime import datetime, timezone
     predloga = EmailPredloga(
         naziv=naziv.strip(),
         zadeva=zadeva.strip(),
         telo_html=telo_html,
         je_privzeta=False,
-        created_at=datetime.utcnow(),
+        vkljuci_qr=vkljuci_qr,
+        created_at=datetime.now(timezone.utc),
     )
     db.add(predloga)
     db.commit()
@@ -153,6 +155,7 @@ async def uredi_predloga_post(
     naziv: str = Form(...),
     zadeva: str = Form(...),
     telo_html: str = Form(...),
+    vkljuci_qr: bool = Form(False),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -167,6 +170,7 @@ async def uredi_predloga_post(
     predloga.naziv = naziv.strip()
     predloga.zadeva = zadeva.strip()
     predloga.telo_html = telo_html
+    predloga.vkljuci_qr = vkljuci_qr
     db.commit()
     log_akcija(db, user.get("uporabnisko_ime"), "email_predloga_uredi", f"Predloga urejena: {naziv}")
     request.session["obv_flash"] = f"Predloga \"{naziv}\" je bila posodobljena."
@@ -276,18 +280,20 @@ async def posli_post(
     poslano = 0
     preskoceno = 0
 
+    qr = predloga.vkljuci_qr if predloga else False
+
     if clan_id and clan_id.strip().isdigit():
         # Pošlji posamezniku
         clan = db.query(Clan).filter(Clan.id == int(clan_id)).first()
         if clan and clan.elektronska_posta and "@" in clan.elektronska_posta:
             try:
-                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db)
+                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr)
                 poslano = 1
                 log_akcija(db, user.get("uporabnisko_ime"), "email_poslan",
                            f"Email poslan: {clan.priimek} {clan.ime} ({clan.elektronska_posta}), leto {leto}")
             except Exception as e:
                 logger.error(f"Napaka pri pošiljanju emaila za {clan.elektronska_posta}: {e}")
-                request.session["obv_flash"] = f"Napaka pri pošiljanju: {e}"
+                request.session["obv_flash"] = "Napaka pri pošiljanju e-pošte. Preverite SMTP nastavitve (podrobnosti v sistemskem dnevniku)."
                 request.session["obv_flash_tip"] = "danger"
                 return RedirectResponse(url="/obvestila/posli", status_code=302)
         else:
@@ -342,7 +348,7 @@ async def posli_post(
                 preskoceno += 1
                 continue
             try:
-                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db)
+                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr)
                 poslano += 1
             except Exception as e:
                 logger.error(f"Napaka pri pošiljanju emaila za {clan.elektronska_posta}: {e}")
