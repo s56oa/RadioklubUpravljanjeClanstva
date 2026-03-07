@@ -1,11 +1,15 @@
+import asyncio
 import io
 import json
 import os
 import re
 import uuid as uuid_lib
-from datetime import date, datetime
+import xml.etree.ElementTree as ET
+from datetime import date, datetime, timedelta
+from typing import List
 
-from fastapi import APIRouter, Request, Form, Depends, UploadFile, File
+import httpx
+from fastapi import APIRouter, Request, Form, Depends, UploadFile, File, Query
 from fastapi.responses import RedirectResponse, HTMLResponse, StreamingResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -685,6 +689,95 @@ async def zrs_nastavitve_shrani(
     return RedirectResponse(url="/izvoz?zrs_shranjeno=1", status_code=302)
 
 
+@router.get("/clani-filtrirani")
+async def izvozi_filtrirane_clane(
+    request: Request,
+    q: str = "",
+    tip: List[str] = Query(default=[]),
+    aktiven: str = "",
+    placal: str = "",
+    rd: List[str] = Query(default=[]),
+    operaterski_razred: List[str] = Query(default=[]),
+    leto_placila: int = Query(default=0),
+    db: Session = Depends(get_db),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+    if not is_editor(user):
+        return RedirectResponse(url="/izvoz", status_code=302)
+
+    from .clani import _filtriraj_clane
+    danes = date.today()
+    kmalu_meja = danes + timedelta(days=180)
+    leto_ef = leto_placila if leto_placila else danes.year
+
+    clani = _filtriraj_clane(db, q=q, tip=tip, aktiven=aktiven, rd=rd,
+                              operaterski_razred=operaterski_razred,
+                              danes=danes, kmalu_meja=kmalu_meja)
+
+    if placal in ("da", "ne"):
+        placali_ids = {
+            c.clan_id
+            for c in db.query(Clanarina).filter(Clanarina.leto == leto_ef).all()
+            if c.datum_placila is not None
+        }
+        if placal == "da":
+            clani = [c for c in clani if c.id in placali_ids]
+        else:
+            clani = [c for c in clani if c.id not in placali_ids]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Clani"
+    header_font = Font(bold=True)
+
+    headers = [
+        "ID", "Priimek", "Ime", "Klicni znak", "Naslov - ulica/naselje",
+        "Naslov - pošta", "Tip članstva", "Klicni znak nosilci",
+        "Operaterski razred", "Mobilni telefon", "Telefon doma",
+        "E-pošta", "Soglasje OP", "Izjava", "Veljavnost RD",
+        "ES številka", "Aktiven", "Opombe",
+    ]
+    ws.append(headers)
+    for cell in ws[1]:
+        cell.font = header_font
+
+    for clan in clani:
+        ws.append([
+            clan.id,
+            clan.priimek,
+            clan.ime,
+            clan.klicni_znak or "",
+            clan.naslov_ulica or "",
+            clan.naslov_posta or "",
+            clan.tip_clanstva,
+            clan.klicni_znak_nosilci or "",
+            clan.operaterski_razred or "",
+            clan.mobilni_telefon or "",
+            clan.telefon_doma or "",
+            clan.elektronska_posta or "",
+            clan.soglasje_op or "",
+            clan.izjava or "",
+            clan.veljavnost_rd.isoformat() if clan.veljavnost_rd else "",
+            clan.es_stevilka or "",
+            "Da" if clan.aktiven else "Ne",
+            clan.opombe or "",
+        ])
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    today = date.today().isoformat()
+    ip = request.client.host if request.client else None
+    log_akcija(db, user.get("uporabnisko_ime") if user else None, "izvoz_clani_filtrirani", ip=ip)
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="clani_izvoz_{today}.xlsx"'},
+    )
+
+
 @router.get("/backup-excel")
 async def backup_excel(request: Request, db: Session = Depends(get_db)) -> Response:
     user, redirect = require_login(request)
@@ -1149,6 +1242,76 @@ async def uvozi_placila_potrdi(
 # AKOS uvoz veljavnosti RD
 # ---------------------------------------------------------------------------
 
+def _parse_akos_xml(xml_text: str) -> date | None:
+    """Razčleni AKOS XML odgovor in vrne datum till ali None.
+
+    Vrne None, če datum manjka, je neveljavnega formata ali starejši od 10 let
+    (AKOS API vrne stare datume za potečene/neveljavne klicne znake).
+    """
+    try:
+        root = ET.fromstring(xml_text.strip())
+        till = root.findtext("HAM/till") or ""
+        if not till.strip():
+            return None
+        parsed = datetime.strptime(till.strip(), "%d.%m.%Y").date()
+        if parsed < date.today() - timedelta(days=365 * 10):
+            return None
+        return parsed
+    except Exception:
+        return None
+
+
+async def _fetch_akos_all(klicni_znaki: list[str]) -> dict[str, date | None]:
+    """Kliče AKOS API za vsak KZ. Vrne {kz_upper: datum_till | None}."""
+    AKOS_BASE = "https://cept.akos-rs.si/"
+    TIMEOUT = 10.0
+    sem = asyncio.Semaphore(5)
+
+    async def fetch_one(client: httpx.AsyncClient, kz: str) -> tuple[str, date | None]:
+        async with sem:
+            try:
+                r = await client.get(f"{AKOS_BASE}{kz}", timeout=TIMEOUT)
+                return kz, _parse_akos_xml(r.text)
+            except Exception:
+                return kz, None
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(*[fetch_one(client, kz) for kz in klicni_znaki])
+        return dict(results)
+
+
+def _akos_api_pregled_iz_podatkov(
+    db: Session, api_data: dict[str, date | None]
+) -> tuple[list[dict], int]:
+    """Iz {KZ_upper: till_date|None} zgradi isti pregled kot _parse_akos_pregled."""
+    clani_s_kz = (
+        db.query(Clan)
+        .filter(Clan.aktiven == True, Clan.klicni_znak != None)
+        .all()
+    )
+    posodobljeni: list[dict] = []
+    brez_ujemanja = 0
+    for c in clani_s_kz:
+        kz = (c.klicni_znak or "").strip().upper()
+        if kz in api_data and api_data[kz] is not None:
+            nova = api_data[kz]
+            stara = c.veljavnost_rd
+            # Ne posodabljamo, če je nova vrednost starejša od obstoječe v bazi
+            spremenjen = stara != nova and (stara is None or nova > stara)
+            posodobljeni.append({
+                "clan_id": c.id,
+                "priimek": c.priimek,
+                "ime": c.ime,
+                "klicni_znak": c.klicni_znak,
+                "stara_veljavnost": stara,
+                "nova_veljavnost": nova,
+                "spremenjen": spremenjen,
+            })
+        else:
+            brez_ujemanja += 1
+    return posodobljeni, brez_ujemanja
+
+
 def _parse_akos_pregled(vsebina: bytes, db: Session) -> tuple[list[dict], int, list[str]]:
     """Parsira AKOS Excel in vrne (posodobljeni, brez_ujemanja, napake).
 
@@ -1290,6 +1453,7 @@ async def uvozi_akos_pregled(
             "posodobljeni": posodobljeni,
             "brez_ujemanja": brez_ujemanja,
             "napake": napake,
+            "potrditev_url": "/izvoz/uvozi-akos-potrdi",
         },
     )
 
@@ -1351,6 +1515,149 @@ async def uvozi_akos_potrdi(
         {
             "request": request, "user": user, "is_admin": True,
             "sporocilo_akos": f"Uvoz AKOS zaključen: {posodobljeni} posodobljenih, {preskoceni} brez spremembe.",
+            "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
+            "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
+        },
+    )
+
+
+@router.post("/uvozi-akos-api", response_class=HTMLResponse)
+async def uvozi_akos_api_pregled(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+    if not is_admin(user):
+        return RedirectResponse(url="/izvoz", status_code=302)
+
+    def _err(napaka: str) -> Response:
+        return templates.TemplateResponse(
+            request, "izvoz/uvoz.html",
+            {
+                "request": request, "user": user, "is_admin": True,
+                "napaka_akos": napaka,
+                "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
+                "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
+            },
+        )
+
+    clani_s_kz = (
+        db.query(Clan)
+        .filter(Clan.aktiven == True, Clan.klicni_znak != None)
+        .all()
+    )
+    if not clani_s_kz:
+        return _err("V bazi ni aktivnih članov s klicnim znakom.")
+
+    klicni_znaki = [(c.klicni_znak or "").strip().upper() for c in clani_s_kz if c.klicni_znak]
+
+    try:
+        api_data = await _fetch_akos_all(klicni_znaki)
+    except Exception as e:
+        return _err(f"Napaka pri klicu AKOS API: {e}")
+
+    posodobljeni, brez_ujemanja = _akos_api_pregled_iz_podatkov(db, api_data)
+
+    napake = [
+        f"Ni najden v AKOS registru: {kz}"
+        for kz in klicni_znaki
+        if kz not in api_data or api_data[kz] is None
+    ]
+
+    os.makedirs(TMP_DIR, exist_ok=True)
+    uvoz_uuid = str(uuid_lib.uuid4())
+    tmp_pot = os.path.join(TMP_DIR, f"akos_api_{uvoz_uuid}.json")
+    tmp_data = [
+        {
+            "clan_id": z["clan_id"],
+            "nova_veljavnost": z["nova_veljavnost"].isoformat(),
+            "spremenjen": z["spremenjen"],
+        }
+        for z in posodobljeni
+    ]
+    with open(tmp_pot, "w") as f:
+        json.dump(tmp_data, f)
+    request.session["_akos_api_uuid"] = uvoz_uuid
+
+    return templates.TemplateResponse(
+        request,
+        "izvoz/uvoz-akos-pregled.html",
+        {
+            "request": request, "user": user, "is_admin": True,
+            "posodobljeni": posodobljeni,
+            "brez_ujemanja": brez_ujemanja,
+            "napake": napake,
+            "potrditev_url": "/izvoz/uvozi-akos-api-potrdi",
+        },
+    )
+
+
+@router.post("/uvozi-akos-api-potrdi", response_class=HTMLResponse)
+async def uvozi_akos_api_potrdi(
+    request: Request,
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+    if not is_admin(user):
+        return RedirectResponse(url="/izvoz", status_code=302)
+
+    uvoz_uuid = request.session.get("_akos_api_uuid")
+
+    def _err(napaka: str) -> Response:
+        return templates.TemplateResponse(
+            request, "izvoz/uvoz.html",
+            {
+                "request": request, "user": user, "is_admin": True,
+                "napaka_akos": napaka,
+                "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
+                "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
+            },
+        )
+
+    if not uvoz_uuid:
+        return _err("Seja je potekla. Prosim zaženite API osvežitev znova.")
+
+    tmp_pot = os.path.join(TMP_DIR, f"akos_api_{uvoz_uuid}.json")
+    if not os.path.exists(tmp_pot):
+        return _err("Začasna datoteka ni najdena. Prosim zaženite API osvežitev znova.")
+
+    try:
+        with open(tmp_pot, "r") as f:
+            tmp_data = json.load(f)
+        posodobljeni = 0
+        preskoceni = 0
+        for zapis in tmp_data:
+            if not zapis.get("spremenjen"):
+                preskoceni += 1
+                continue
+            clan = db.query(Clan).filter(Clan.id == zapis["clan_id"]).first()
+            if clan:
+                clan.veljavnost_rd = date.fromisoformat(zapis["nova_veljavnost"])
+                posodobljeni += 1
+        db.commit()
+        ip = request.client.host if request.client else None
+        log_akcija(
+            db, user.get("uporabnisko_ime") if user else None,
+            "uvoz_akos_api",
+            f"{posodobljeni} posodobljenih, {preskoceni} brez spremembe",
+            ip=ip,
+        )
+    finally:
+        if os.path.exists(tmp_pot):
+            os.remove(tmp_pot)
+        request.session.pop("_akos_api_uuid", None)
+
+    return templates.TemplateResponse(
+        request, "izvoz/uvoz.html",
+        {
+            "request": request, "user": user, "is_admin": True,
+            "sporocilo_akos": f"Osvežitev AKOS (API) zaključena: {posodobljeni} posodobljenih, {preskoceni} brez spremembe.",
             "kljuci_uvoz": KLJUCI_UVOZ, "uvoz_nas": {}, "uvoz_shranjeno": False,
             "kljuci_uvoz_placila": KLJUCI_UVOZ_PLACILA, "placila_nas": {}, "placila_shranjeno": False,
         },

@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.20 | Datum: 2026-03-06*
+*Različica 1.21 | Datum: 2026-03-07*
 
 ---
 
@@ -923,7 +923,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (106) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (128) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1129,6 +1129,11 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | `/backup-excel` omejen samo na admin | v1.19 |
 | IDOR zaščita pri brisanju članarine (`clan_id` validacija) | v1.19 |
 | Validacija formata datuma veljavnosti RD in ES-številke (400 namesto 500) | v1.19 |
+| IDOR zaščita vloge (uredi + izbrisi) in aktivnosti (izbrisi) – `clan_id` v DB poizvedbi | v1.21 |
+| Popravek filtra neplačnikov – dodan `datum_placila != None` | v1.21 |
+| `try/except ValueError` pri dodajanju plačil in aktivnosti (400 namesto 500) | v1.21 |
+| Audit log pokritost za vse CRUD endpointe (vloge, aktivnosti, clanarine, uporabniki) | v1.21 |
+| `ContentSizeLimitMiddleware` utrjen: specifične upload poti + HTTP 411 za manjkajoč header | v1.21 |
 
 ### Varnostno vzdrževanje
 
@@ -1158,12 +1163,12 @@ pytest tests/ -v
 | `test_normalizacija.py` | _normaliziraj_clan (title case, KZ, email) | 6 |
 | `test_config.py` | get_nastavitev, get_seznam, get_tipi_clanstva | 4 |
 | `test_audit.py` | log_akcija, napaka ne propagira | 3 |
-| `test_routes.py` | login, /health, /clani, /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka, backup-excel dostop, IDOR clanarina, validacija vnosa | 25 |
-| `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), izbriši (admin/urednik/brez seje), kaskadno brisanje, dropdown, validacija datumov | 17 |
+| `test_routes.py` | login, /health, /clani (multi-select filtri, operaterski razred), /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka, backup-excel dostop, IDOR clanarina+aktivnosti, validacija vnosa, filtrirani Excel izvoz, neplacniki logika | 36 |
+| `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), uredi (editor, brez pravic, IDOR, neveljavni datum), izbriši (admin/urednik/brez seje, IDOR), kaskadno brisanje, dropdown, validacija datumov | 22 |
 | `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
 | `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk (neplačniki/rd_potekla/vsi_aktivni/vsi), brez SMTP (mock smtplib) | 14 |
-| `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ | 6 |
-| **Skupaj** | | **106** |
+| `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ, star datum (>10 let), zaščita pred znižanjem | 12 |
+| **Skupaj** | | **128** |
 
 ### Testna infrastruktura
 
@@ -1176,4 +1181,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.19 + CI/CD*
+*Radio klub Člani – tehnična dokumentacija, različica 1.21*

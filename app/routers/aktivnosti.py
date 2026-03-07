@@ -9,6 +9,7 @@ from ..database import get_db
 from ..models import Aktivnost, Clan
 from ..auth import require_login, is_editor, is_admin
 from ..csrf import get_csrf_token, csrf_protect
+from ..audit_log import log_akcija
 
 router = APIRouter(prefix="/aktivnosti")
 templates = Jinja2Templates(directory="app/templates")
@@ -82,15 +83,75 @@ async def dodaj(
         except ValueError:
             pass
 
+    try:
+        datum_parsed = date.fromisoformat(datum) if datum else None
+    except ValueError:
+        return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)
+
     a = Aktivnost(
         clan_id=clan_id,
         leto=leto,
-        datum=date.fromisoformat(datum) if datum else None,
+        datum=datum_parsed,
         opis=opis,
         delovne_ure=ure,
     )
     db.add(a)
     db.commit()
+    ip = request.client.host if request.client else None
+    log_akcija(db, user.get("uporabnisko_ime") if user else None, "aktivnost_dodana",
+               f"Aktivnost dodana za clan_id {clan_id}, leto {leto}", ip=ip)
+    return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)
+
+
+@router.post("/uredi/{aktivnost_id}")
+async def uredi(
+    request: Request,
+    aktivnost_id: int,
+    clan_id: int = Form(...),
+    leto: int = Form(...),
+    datum: str = Form(""),
+    opis: str = Form(...),
+    delovne_ure: str = Form(""),
+    db: Session = Depends(get_db),
+    _csrf: None = Depends(csrf_protect),
+) -> RedirectResponse:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+    if not is_editor(user):
+        return RedirectResponse(url=f"/clani/{clan_id}", status_code=302)
+
+    a = db.query(Aktivnost).filter(
+        Aktivnost.id == aktivnost_id,
+        Aktivnost.clan_id == clan_id,
+    ).first()
+    if not a:
+        return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)
+
+    opis = opis.strip()[:1000]
+    if not opis:
+        return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)
+
+    try:
+        datum_parsed = date.fromisoformat(datum) if datum.strip() else None
+    except ValueError:
+        return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)
+
+    ure: float | None = None
+    if delovne_ure.strip():
+        try:
+            ure = float(delovne_ure.replace(",", "."))
+        except ValueError:
+            pass
+
+    a.leto = leto
+    a.datum = datum_parsed
+    a.opis = opis
+    a.delovne_ure = ure
+    db.commit()
+    ip = request.client.host if request.client else None
+    log_akcija(db, user.get("uporabnisko_ime") if user else None, "aktivnost_uredi",
+               f"Aktivnost {aktivnost_id} za clan_id {clan_id}", ip=ip)
     return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)
 
 
@@ -108,8 +169,14 @@ async def izbrisi(
     if not is_editor(user):
         return RedirectResponse(url=f"/clani/{clan_id}", status_code=302)
 
-    a = db.query(Aktivnost).filter(Aktivnost.id == aktivnost_id).first()
+    a = db.query(Aktivnost).filter(
+        Aktivnost.id == aktivnost_id,
+        Aktivnost.clan_id == clan_id,
+    ).first()
     if a:
         db.delete(a)
         db.commit()
+        ip = request.client.host if request.client else None
+        log_akcija(db, user.get("uporabnisko_ime") if user else None, "aktivnost_izbrisana",
+                   f"Aktivnost {aktivnost_id} izbrisana za clan_id {clan_id}", ip=ip)
     return RedirectResponse(url=f"/clani/{clan_id}#aktivnosti", status_code=302)

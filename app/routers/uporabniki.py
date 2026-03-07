@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models import Uporabnik, VLOGE
 from ..auth import require_login, is_admin, hash_geslo, preveri_zahteve_gesla
 from ..csrf import get_csrf_token, csrf_protect
+from ..audit_log import log_akcija
 
 
 def _generiraj_geslo(dolzina: int = 16) -> str:
@@ -137,6 +138,9 @@ async def nov_shrani(
     )
     db.add(u)
     db.commit()
+    ip = request.client.host if request.client else None
+    log_akcija(db, user.get("uporabnisko_ime") if user else None, "uporabnik_dodan",
+               f"Nov uporabnik: {uporabnisko_ime.strip()} ({vloga})", ip=ip)
     return RedirectResponse(url="/uporabniki", status_code=302)
 
 
@@ -232,6 +236,9 @@ async def uredi_shrani(
     u.vloga = vloga if vloga in VLOGE else "bralec"
     u.aktiven = aktiven == "da"
     db.commit()
+    ip = request.client.host if request.client else None
+    log_akcija(db, user.get("uporabnisko_ime") if user else None, "uporabnik_urejen",
+               f"Uporabnik urejen: {u.uporabnisko_ime} (vloga={u.vloga}, aktiven={u.aktiven})", ip=ip)
     return RedirectResponse(url="/uporabniki", status_code=302)
 
 
@@ -249,6 +256,10 @@ async def izbrisi(request: Request, uid: int, db: Session = Depends(get_db), _cs
 
     u = db.query(Uporabnik).filter(Uporabnik.id == uid).first()
     if u:
+        ime = u.uporabnisko_ime
         db.delete(u)
         db.commit()
+        ip = request.client.host if request.client else None
+        log_akcija(db, user.get("uporabnisko_ime") if user else None, "uporabnik_izbrisan",
+                   f"Uporabnik izbrisan: {ime}", ip=ip)
     return RedirectResponse(url="/uporabniki", status_code=302)

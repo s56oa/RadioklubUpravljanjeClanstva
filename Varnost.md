@@ -1,13 +1,13 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-06 (v1.20)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-07 (v1.21)*
 
 ---
 
 ## Povzetek
 
 Aplikacija je primarna za uporabo v zaupljivem lokalnem okolju (radioklub, domače omrežje, VPN).
-Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). V v1.19 so bile odpravljene tri varnostne pomanjkljivosti: backup Excel omejen na admin, IDOR zaščita pri brisanju članarine in validacija formata vhodnih podatkov. V v1.20 so bile izvedene štiri varnostne izboljšave: opozorilo za SMTP "plain" način v UI, generično SMTP napako sporočilo, `data-geslo` namesto inline JS pri kopiranju gesla in popravek dolžine resetiranega gesla (12 → 16 znakov). Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
+Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacija vhodnih podatkov in implementirana tako audit log kot opcijska TOTP dvostopenjska avtentikacija (v1.12). V v1.13 so bile dodane varnostne izboljšave (persistentni rate limiting, omejitev POST zahtevkov, iztok seje ob neaktivnosti). V v1.14 so bili dodani novi pregledi (aktivnosti, plačila, dashboard) brez novih varnostnih tveganj. V v1.16 je bil odstranjen debug endpoint za UPN QR in odpravljena ranljivost pri HTTP Content-Disposition headerju z non-ASCII znaki. V v1.18 je bila odpravljena ranljivost za email header injection (strip `\r\n` iz zadeve/naslovov) in Jinja2 email predloge zaščitene z `SandboxedEnvironment` (preprečitev template injection). V v1.19 so bile odpravljene tri varnostne pomanjkljivosti: backup Excel omejen na admin, IDOR zaščita pri brisanju članarine in validacija formata vhodnih podatkov. V v1.20 so bile izvedene štiri varnostne izboljšave: opozorilo za SMTP "plain" način v UI, generično SMTP napako sporočilo, `data-geslo` namesto inline JS pri kopiranju gesla in popravek dolžine resetiranega gesla (12 → 16 znakov). V v1.21 je bil opravljen celovit varnostni pregled: odpravljene IDOR ranljivosti pri vlogah in aktivnostih (`clan_id` validacija v uredi+izbrisi endpointih), popravljena logika filtra neplačnikov (manjkajoč pogoj `datum_placila != None`), dodana `try/except ValueError` zaščita pri dodajanju plačil in aktivnosti, razširjena pokritost audit loga na vse CRUD endpointe (vloge, aktivnosti, clanarine, uporabniki), utrjen `ContentSizeLimitMiddleware` (specifične upload poti namesto prefiksa + 411 za manjkajoč `Content-Length` header), čiščenje JSON začasnih datotek AKOS API ob zagonu in refaktoriranje email.py z `_clan_context()` pomočnikom za odpravo podvojene kode. Preostajata dve **kritični** konfiguraciji (`SECRET_KEY`, admin geslo), ki ju je treba nastaviti pred vsakim zagonom.
 
 ---
 
@@ -55,6 +55,13 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | `data-geslo` atribut namesto inline JS pri kopiranju začasnega gesla | ✅ | v1.20 |
 | Reset geslo 12 → 16 znakov (popravek hrošča v reset handlerju, upoštevanje politike) | ✅ | v1.20 |
 | Čiščenje `data/tmp/*.xlsx` ob zagonu (zaostale datoteke z osebnimi podatki) | ✅ | v1.20 |
+| IDOR zaščita vloge (`clan_id` validacija v uredi + izbrisi endpointih) | ✅ | v1.21 |
+| IDOR zaščita aktivnosti (`clan_id` validacija v izbrisi endpointu) | ✅ | v1.21 |
+| Popravek filtra neplačnikov – dodan pogoj `datum_placila != None` (odpravlja logično napako: člen z vnosom brez datuma je bil napačno izključen iz neplačnikov) | ✅ | v1.21 |
+| `try/except ValueError` za neveljavni datum pri dodajanju plačil in aktivnosti (vrne 200 z napako, ne 500) | ✅ | v1.21 |
+| Audit log pokritost: vsi CRUD endpointi (vloge dodaj/izbrisi, aktivnosti dodaj/izbrisi, clanarine dodaj/izbrisi, uporabniki nov/uredi/izbrisi) | ✅ | v1.21 |
+| `ContentSizeLimitMiddleware` utrjen: specifične upload poti (`/izvoz/uvozi`, `/izvoz/uvozi-akos`, `/izvoz/uvozi-placila`) namesto prefiksa; 411 za zahteve brez `Content-Length` headerja | ✅ | v1.21 |
+| Čiščenje AKOS API JSON začasnih datotek (`data/tmp/akos_api_*.json`) ob zagonu | ✅ | v1.21 |
 
 ---
 
@@ -109,9 +116,9 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 - **Tveganje:** Pri >10 sočasnih pisanjih možni `database is locked` napake.
 - **Ukrep:** Za produkcijsko rabo (>50 sočasnih uporabnikov) migracija na PostgreSQL.
 
-#### S3. ~~Ni omejitve velikosti za navadne POST zahteve~~ ✅ IMPLEMENTIRANO (v1.13)
+#### S3. ~~Ni omejitve velikosti za navadne POST zahteve~~ ✅ IMPLEMENTIRANO (v1.13, dopolnjeno v1.21)
 - `ContentSizeLimitMiddleware` v `app/main.py` – zavrne POST/PUT/PATCH z body > 1 MB (HTTP 413).
-- Izvoz rute (`/izvoz/*`) so izvzete – imajo lastno omejitev 10 MB za datoteke.
+- V v1.21 dopolnjeno: namesto izključitve celotnega `/izvoz/` prefiksa so navedene samo specifične upload poti (`/izvoz/uvozi`, `/izvoz/uvozi-akos`, `/izvoz/uvozi-placila`); zahteve brez `Content-Length` headerja prejmejo HTTP 411.
 
 #### S4. ~~Ni izteka seje ob neaktivnosti~~ ✅ IMPLEMENTIRANO (v1.13)
 - `InactivityTimeoutMiddleware` v `app/main.py` – odjavi po 30 min neaktivnosti.
@@ -221,6 +228,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.18 | Email header injection odpravljena (strip `\r\n` iz zadeve, From, To pred vstavljanjem v headers); Jinja2 `SandboxedEnvironment` za email predloge (preprečitev template injection pri user-supplied Jinja2 predlogah) |
 | v1.19 | `/backup-excel` omejen samo na admin; IDOR zaščita pri brisanju članarine (`clan_id` validacija); validacija formata datuma veljavnosti RD in ES-številke pri vnosu/urejanju člana; DB indeksi za `clani.aktiven`, `clanarine.leto`, `aktivnosti.leto` (Alembic 006) |
 | v1.20 | Opozorilo za SMTP "plain" način v nastavitvenem UI; generično SMTP napako sporočilo (polna napaka samo v `app.log`); `data-geslo` atribut namesto inline JS `onclick` pri kopiranju začasnega gesla (preprečitev potencialnega JS injection); reset geslo `_generiraj_geslo(12)` → `(16)` (popravek hrošča – reset handler ni upošteval politike min. 14 znakov); čiščenje `data/tmp/*.xlsx` ob zagonu (odstranitev zaostalih datotek z osebnimi podatki) |
+| v1.21 | IDOR zaščita vloge (uredi + izbrisi) in aktivnosti (izbrisi) – dodan `clan_id` pogoj v DB poizvedbah; popravek filtra neplačnikov v `/obvestila` (manjkajoč pogoj `datum_placila != None`); `try/except ValueError` pri dodajanju plačil in aktivnosti; razširjena pokritost audit loga (vloge, aktivnosti, clanarine, uporabniki); `ContentSizeLimitMiddleware` utrjen (specifične upload poti + HTTP 411); čiščenje AKOS API JSON tmp datotek ob zagonu; refaktoriranje email.py (`_clan_context()` pomočnik za odpravo podvojene kode) |
 
 ---
 

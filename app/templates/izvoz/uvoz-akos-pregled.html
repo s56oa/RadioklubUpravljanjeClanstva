@@ -115,14 +115,14 @@
 {% if brez_ujemanja > 0 %}
 <div class="alert alert-secondary small">
   <i class="bi bi-info-circle me-2"></i>
-  <strong>{{ brez_ujemanja }}</strong> aktivnih članov s klicnim znakom ni bilo najdenih v AKOS datoteki –
+  <strong>{{ brez_ujemanja }}</strong> aktivnih članov s klicnim znakom ni bilo najdenih v AKOS registru –
   njihova veljavnost RD ostane nespremenjena.
 </div>
 {% endif %}
 
 <div class="d-flex gap-2 mt-3">
   {% if st_spremenjen > 0 %}
-  <form method="post" action="/izvoz/uvozi-akos-potrdi">
+  <form method="post" action="{{ potrditev_url }}">
     <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
     <button type="submit" class="btn btn-success">
       <i class="bi bi-upload me-1"></i>Potrdi posodobitev ({{ st_spremenjen }} članov)

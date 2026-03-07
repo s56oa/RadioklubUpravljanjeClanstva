@@ -217,6 +217,19 @@
           <a href="/izvoz" class="btn btn-outline-secondary">Prekliči</a>
         </div>
       </form>
+
+      <hr class="my-3">
+      <div class="small text-muted mb-2">
+        <i class="bi bi-cloud me-1"></i><strong>Alternativa – AKOS API:</strong>
+        Sistem sam pridobi veljavnosti direktno iz AKOS registra za vse aktivne člane s klicnim znakom.
+        Datoteke ni potrebno naložiti.
+      </div>
+      <form method="post" action="/izvoz/uvozi-akos-api">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+        <button type="submit" class="btn btn-outline-primary btn-sm">
+          <i class="bi bi-cloud-download me-1"></i>Osveži iz AKOS API
+        </button>
+      </form>
     </div>
   </div>
 </div>

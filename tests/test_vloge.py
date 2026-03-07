@@ -360,3 +360,140 @@ def test_dodaj_vlogo_napacen_datum_do(client, db):
     )
     assert resp.status_code == 302
     assert db.query(ClanVloga).filter(ClanVloga.clan_id == clan.id).count() == 0
+
+
+# ---------------------------------------------------------------------------
+# Urejanje vloge
+# ---------------------------------------------------------------------------
+
+def test_uredi_vlogo_post(client, db):
+    """POST /vloge/{id}/uredi → posodobi vrednosti v DB in preusmeri."""
+    token = _login(client, db, vloga="urednik")
+    clan = _nov_clan(db)
+    v = ClanVloga(clan_id=clan.id, naziv="Tajnik", datum_od=date(2020, 1, 1))
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+
+    resp = client.post(
+        f"/vloge/{v.id}/uredi",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "naziv": "Blagajnik",
+            "datum_od": "2021-03-01",
+            "datum_do": "2023-12-31",
+            "opombe": "Sprememba",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    assert f"/clani/{clan.id}" in resp.headers["location"]
+
+    db.refresh(v)
+    assert v.naziv == "Blagajnik"
+    assert v.datum_od == date(2021, 3, 1)
+    assert v.datum_do == date(2023, 12, 31)
+    assert v.opombe == "Sprememba"
+
+
+def test_uredi_vlogo_neveljavni_datum(client, db):
+    """POST /vloge/{id}/uredi z napačnim datumom → redirect (ne 500), vrednosti nespremenjene."""
+    token = _login(client, db, vloga="urednik")
+    clan = _nov_clan(db)
+    v = ClanVloga(clan_id=clan.id, naziv="Tajnik", datum_od=date(2020, 1, 1))
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+
+    resp = client.post(
+        f"/vloge/{v.id}/uredi",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "naziv": "Predsednik",
+            "datum_od": "ni-datum",
+            "datum_do": "",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+
+    db.refresh(v)
+    assert v.naziv == "Tajnik"  # ni spremenjen
+
+
+def test_uredi_vlogo_brez_pravic(client, db):
+    """Bralec ne sme urejati vloge → redirect, vrednosti nespremenjene."""
+    token = _login(client, db, vloga="bralec")
+    clan = _nov_clan(db)
+    v = ClanVloga(clan_id=clan.id, naziv="Tajnik", datum_od=date(2020, 1, 1))
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+
+    resp = client.post(
+        f"/vloge/{v.id}/uredi",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "naziv": "Predsednik",
+            "datum_od": "2021-01-01",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+
+    db.refresh(v)
+    assert v.naziv == "Tajnik"  # ni spremenjen
+
+
+# ---------------------------------------------------------------------------
+# IDOR zaščita
+# ---------------------------------------------------------------------------
+
+def test_uredi_vlogo_idor_blokiran(client, db):
+    """Urednik ne sme urejati vloge, ki ne pripada podanemu clan_id (IDOR zaščita)."""
+    token = _login(client, db, vloga="urednik")
+    clan_a = _nov_clan(db, "ClanA", "Test")
+    clan_b = _nov_clan(db, "ClanB", "Test")
+    v = ClanVloga(clan_id=clan_a.id, naziv="Tajnik", datum_od=date(2020, 1, 1))
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+
+    # Pošljemo pravilen vloga_id, a napačen clan_id (clan_b namesto clan_a)
+    resp = client.post(
+        f"/vloge/{v.id}/uredi",
+        data={
+            "csrf_token": token,
+            "clan_id": clan_b.id,
+            "naziv": "Predsednik",
+            "datum_od": "2022-01-01",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(v)
+    assert v.naziv == "Tajnik"  # ni spremenjen
+
+
+def test_izbrisi_vlogo_idor_blokiran(client, db):
+    """Admin ne sme brisati vloge drugega člana z napačnim clan_id (IDOR zaščita)."""
+    token = _login(client, db, vloga="admin")
+    clan_a = _nov_clan(db, "ClanA", "Test")
+    clan_b = _nov_clan(db, "ClanB", "Test")
+    v = ClanVloga(clan_id=clan_a.id, naziv="Blagajnik", datum_od=date(2020, 1, 1))
+    db.add(v)
+    db.commit()
+    db.refresh(v)
+
+    # Pošljemo pravilen vloga_id, a napačen clan_id
+    resp = client.post(
+        f"/vloge/izbrisi/{v.id}",
+        data={"csrf_token": token, "clan_id": clan_b.id},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    # Vloga mora ostati v bazi
+    assert db.query(ClanVloga).filter(ClanVloga.id == v.id).first() is not None

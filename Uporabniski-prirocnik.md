@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.20 | Datum: 2026-03-06*
+*Različica 1.21 | Datum: 2026-03-07*
 
 ---
 
@@ -103,17 +103,21 @@ Po prijavi se odpre seznam vseh članov kluba.
 ### Iskanje in filtriranje
 
 - **Iskalno polje** (zgoraj desno v tabeli): iščite po priimku, imenu, klicnem znaku ali tipu članstva.
-- **Filter veljavnosti RD** (zgoraj levo):
-  - *Vsi* – prikaže vse člane
-  - *Potekla RD* – člani katerih radioamaterska dovoljenje je že poteklo
+- **Filter tipa** (spustni seznam z checkboxi): izberite enega ali več tipov članstva hkrati. Klik na gumb odpre seznam s checkboxi; klik zunaj menija zapre brez izgube izbire.
+- **Filter veljavnosti RD** (spustni seznam z checkboxi): izberite eno ali več vrednosti:
+  - *Potekla RD* – člani katerih radioamatersko dovoljenje je že poteklo
   - *RD kmalu poteče* – poteče v naslednjih 180 dneh
   - *Veljavna RD* – dovoljenje je veljavno
   - *Brez RD* – ni datuma veljavnosti
-- **Filter tipa** (spustni seznam): omeji prikaz na izbrani tip članstva.
+- **Filter operaterskega razreda** (spustni seznam z checkboxi): omeji prikaz na izbrane razrede (A, N, …).
 - **Leto čl.** (spustni seznam): izberite leto za prikaz stanja plačila članarine. Privzeto je tekoče leto. Ob spremembi leta se seznam samodejno osveži.
 - **Stanje čl.**: filtrirajte po plačanem/neplačanem statusu za izbrano leto.
 
 Ko je aktiven filter **Neplačano**, se pod filtri prikaže gumb **Pošlji poziv vsem neplačnikom** (samo urednik in admin). Klik odpre formo za pošiljanje e-poštnih pozivov vsem prikazanim neplačnikom hkrati (glejte razdelek 19).
+
+### Izvoz filtriranega seznama
+
+Gumb **Izvozi v Excel** (urednik in admin, zgoraj desno nad tabelo) prenese Excel datoteko z vsemi trenutno filtriranimi člani. Izvoz upošteva vse aktivne filtre (iskanje, tip, RD, operaterski razred, aktiven, plačilo). Datoteka vsebuje iste stolpce kot Excel backup (list "Clani").
 
 ### Stolpci tabele
 
@@ -588,6 +592,15 @@ Dostopno za urednike in admin.
 
 > Nastavljive vloge (spustni seznam) urejate v **Nastavitve → Vloge in funkcije članov**.
 
+### Urejanje vloge
+
+Dostopno za urednike in admin.
+
+1. Kliknite gumb **Uredi** (svinčnik) ob vnosu v tabeli vlog.
+2. Odpre se modalno okno s prednapolnjenimi vrednostmi.
+3. Spremenite naziv, datume ali opombe.
+4. Kliknite **Shrani**.
+
 ### Brisanje vloge
 
 Dostopno samo za admin. Kliknite gumb **Izbriši** (koš) ob vnosu. Brisanje je takojšnje brez potrditvenega okna.
@@ -768,9 +781,10 @@ Preglejte predogled in kliknite **Potrdi posodobitev**. Za preklic kliknite **Pr
 - **Identifikacija:** izključno po klicnem znaku (neobčutljivo na velikost črk)
 - **Člani brez ujemanja:** ostanejo nespremenjeni (aplikacija samo poroča o številu)
 - **Člani brez klicnega znaka:** se tiho preskočijo
+- **Zastareli podatki AKOS:** Če AKOS vrne datum starejši od 10 let (npr. za potečene/neveljavne klicne znake), se ta vrednost zavrne kot neveljavna. Datum se prav tako ne posodobi, če je vrnjena vrednost starejša od datuma, ki je že vnesen v bazi.
 
 > Priporočamo uvoz enkrat letno ob obnovi dovoljenj (tipično januarja/februarja).
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.18 (2026-03-05)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.21 (2026-03-07)*

@@ -1,10 +1,11 @@
 import re
 from datetime import date, timedelta
+from typing import List
 
-from fastapi import APIRouter, Request, Form, Depends
+from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -32,25 +33,25 @@ def _normaliziraj_clan(priimek, ime, klicni_znak, elektronska_posta, tip_clanstv
     return priimek, ime, kz, email, tip_clanstva, None
 
 
-@router.get("", response_class=HTMLResponse)
-async def seznam(
-    request: Request,
+def _filtriraj_clane(
+    db: Session,
     q: str = "",
-    tip: str = "",
-    aktiven: str = "da",
-    placal: str = "",
-    rd: str = "",
-    leto_placila: int = 0,
-    db: Session = Depends(get_db),
-) -> Response:
-    user, redirect = require_login(request)
-    if redirect:
-        return redirect
+    tip: List[str] = None,
+    aktiven: str = "",
+    rd: List[str] = None,
+    operaterski_razred: List[str] = None,
+    danes: date = None,
+    kmalu_meja: date = None,
+) -> list:
+    """Vrne seznam članov z apliciranimi filtri (brez placal filtra)."""
+    if danes is None:
+        danes = date.today()
+    if kmalu_meja is None:
+        kmalu_meja = danes + timedelta(days=180)
+    tip = tip or []
+    rd = rd or []
+    operaterski_razred = operaterski_razred or []
 
-    danes = date.today()
-    kmalu_meja = danes + timedelta(days=180)
-    leto_zdaj = danes.year
-    leto_ef = leto_placila if leto_placila else leto_zdaj
     query = db.query(Clan)
 
     if aktiven == "da":
@@ -66,20 +67,54 @@ async def seznam(
                 Clan.klicni_znak.ilike(f"%{q}%"),
             )
         )
+
     if tip:
-        query = query.filter(Clan.tip_clanstva == tip)
+        query = query.filter(Clan.tip_clanstva.in_(tip))
 
-    # Filter po RD veljavnosti
-    if rd == "potekla":
-        query = query.filter(Clan.veljavnost_rd != None, Clan.veljavnost_rd < danes)
-    elif rd == "kmalu":
-        query = query.filter(Clan.veljavnost_rd >= danes, Clan.veljavnost_rd <= kmalu_meja)
-    elif rd == "veljavna":
-        query = query.filter(Clan.veljavnost_rd > kmalu_meja)
-    elif rd == "brez":
-        query = query.filter(Clan.veljavnost_rd == None)
+    if operaterski_razred:
+        query = query.filter(Clan.operaterski_razred.in_(operaterski_razred))
 
-    clani = query.order_by(Clan.priimek, Clan.ime).all()
+    if rd:
+        rd_conds = []
+        for r in rd:
+            if r == "potekla":
+                rd_conds.append(and_(Clan.veljavnost_rd != None, Clan.veljavnost_rd < danes))
+            elif r == "kmalu":
+                rd_conds.append(and_(Clan.veljavnost_rd >= danes, Clan.veljavnost_rd <= kmalu_meja))
+            elif r == "veljavna":
+                rd_conds.append(Clan.veljavnost_rd > kmalu_meja)
+            elif r == "brez":
+                rd_conds.append(Clan.veljavnost_rd == None)
+        if rd_conds:
+            query = query.filter(or_(*rd_conds))
+
+    return query.order_by(Clan.priimek, Clan.ime).all()
+
+
+@router.get("", response_class=HTMLResponse)
+async def seznam(
+    request: Request,
+    q: str = "",
+    tip: List[str] = Query(default=[]),
+    aktiven: str = "da",
+    placal: str = "",
+    rd: List[str] = Query(default=[]),
+    operaterski_razred: List[str] = Query(default=[]),
+    leto_placila: int = 0,
+    db: Session = Depends(get_db),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return redirect
+
+    danes = date.today()
+    kmalu_meja = danes + timedelta(days=180)
+    leto_zdaj = danes.year
+    leto_ef = leto_placila if leto_placila else leto_zdaj
+
+    clani = _filtriraj_clane(db, q=q, tip=tip, aktiven=aktiven, rd=rd,
+                              operaterski_razred=operaterski_razred,
+                              danes=danes, kmalu_meja=kmalu_meja)
 
     # Pripravi set članov ki so plačali za izbrano leto
     placali_ids = {
@@ -105,7 +140,9 @@ async def seznam(
             "aktiven": aktiven,
             "placal": placal,
             "rd": rd,
+            "operaterski_razred": operaterski_razred,
             "tipi_clanstva": get_tipi_clanstva(db),
+            "operaterski_razredi": get_operaterski_razredi(db),
             "placali_ids": placali_ids,
             "leto": leto_ef,
             "leto_zdaj": leto_zdaj,

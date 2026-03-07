@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.20"
-APP_RELEASE_DATE = "2026-03-06"
+APP_VERSION = "1.21"
+APP_RELEASE_DATE = "2026-03-07"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -93,22 +93,32 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+_UPLOAD_PATHS = {"/izvoz/uvozi", "/izvoz/uvozi-akos", "/izvoz/uvozi-placila"}
+
+
 class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
-    """Zavrne POST/PUT/PATCH zahteve z body > 1 MB (razen /izvoz/ ki ima lastno omejitev)."""
+    """Zavrne POST/PUT/PATCH zahteve z body > 1 MB (razen upload endpointov ki imajo lastno omejitev).
+
+    Zavrne tudi zahteve brez Content-Length headerja (prepreči chunked bypass).
+    """
 
     async def dispatch(self, request: Request, call_next):
         if request.method in ("POST", "PUT", "PATCH"):
-            if not request.url.path.startswith("/izvoz/"):
+            if request.url.path not in _UPLOAD_PATHS:
                 content_length = request.headers.get("content-length")
-                if content_length:
-                    try:
-                        if int(content_length) > _MAX_BODY_BYTES:
-                            from fastapi.responses import PlainTextResponse
-                            return PlainTextResponse(
-                                "Zahtevek je prevelik (max 1 MB).", status_code=413
-                            )
-                    except ValueError:
-                        pass
+                if content_length is None:
+                    from fastapi.responses import PlainTextResponse
+                    return PlainTextResponse(
+                        "Content-Length header je zahtevan.", status_code=411
+                    )
+                try:
+                    if int(content_length) > _MAX_BODY_BYTES:
+                        from fastapi.responses import PlainTextResponse
+                        return PlainTextResponse(
+                            "Zahtevek je prevelik (max 1 MB).", status_code=413
+                        )
+                except ValueError:
+                    pass
         return await call_next(request)
 
 
@@ -226,8 +236,8 @@ def _run_migrations() -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     os.makedirs("data", exist_ok=True)
-    # Počisti zaostale začasne Excel datoteke iz prejšnjih sej uvoza
-    for _f in glob.glob("data/tmp/*.xlsx"):
+    # Počisti zaostale začasne datoteke iz prejšnjih sej uvoza
+    for _f in glob.glob("data/tmp/*.xlsx") + glob.glob("data/tmp/akos_api_*.json"):
         try:
             os.remove(_f)
         except OSError:

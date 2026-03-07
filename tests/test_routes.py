@@ -73,7 +73,7 @@ def test_verzijska_znacka_vsebuje_verzijo(client, db):
     _login(client, db)
     resp = client.get("/clani")
     assert resp.status_code == 200
-    assert "1.20" in resp.text
+    assert "1.21" in resp.text
 
 
 def test_get_clani_brez_seje(client):
@@ -409,3 +409,262 @@ def test_clan_nov_napacna_es_stevilka(client, db):
     )
     assert resp.status_code == 200
     assert "Napačen format" in resp.text or "napak" in resp.text.lower()
+
+
+# ---------------------------------------------------------------------------
+# Multi-select filtri na /clani
+# ---------------------------------------------------------------------------
+
+def test_multi_select_tip(client, db):
+    """?tip=Osebni&tip=Mladi → oba tipa v rezultatu, tretji ne."""
+    _login(client, db)
+    c1 = Clan(priimek="Osebni", ime="Clan", tip_clanstva="Osebni", aktiven=True)
+    c2 = Clan(priimek="Mladi", ime="Clan", tip_clanstva="Mladi", aktiven=True)
+    c3 = Clan(priimek="Druzinski", ime="Clan", tip_clanstva="Družinski", aktiven=True)
+    db.add_all([c1, c2, c3])
+    db.commit()
+
+    resp = client.get("/clani?tip=Osebni&tip=Mladi&aktiven=")
+    assert resp.status_code == 200
+    assert "Osebni" in resp.text
+    assert "Mladi" in resp.text
+    assert "Druzinski" not in resp.text
+
+
+def test_operaterski_razred_filter(client, db):
+    """?operaterski_razred=A → samo člani z razredom A."""
+    _login(client, db)
+    c1 = Clan(priimek="RazredA", ime="Clan", tip_clanstva="Osebni", operaterski_razred="A", aktiven=True)
+    c2 = Clan(priimek="RazredN", ime="Clan", tip_clanstva="Osebni", operaterski_razred="N", aktiven=True)
+    db.add_all([c1, c2])
+    db.commit()
+
+    resp = client.get("/clani?operaterski_razred=A&aktiven=")
+    assert resp.status_code == 200
+    assert "RazredA" in resp.text
+    assert "RazredN" not in resp.text
+
+
+def test_filtrirani_izvoz(client, db):
+    """GET /izvoz/clani-filtrirani?aktiven=da → 200 + Excel MIME type."""
+    _login(client, db)
+    c = Clan(priimek="Izvoz", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add(c)
+    db.commit()
+
+    resp = client.get("/izvoz/clani-filtrirani?aktiven=da", follow_redirects=False)
+    assert resp.status_code == 200
+    assert "spreadsheetml" in resp.headers.get("content-type", "")
+
+
+# ---------------------------------------------------------------------------
+# Uredi clanarine
+# ---------------------------------------------------------------------------
+
+def test_uredi_clanarino_post(client, db):
+    """POST /clanarine/uredi/{id} → posodobi datum, znesek, opombe."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan = Clan(priimek="UrejevalecC", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+    c = Clanarina(clan_id=clan.id, leto=2024, datum_placila=date(2024, 1, 1), znesek="20")
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+
+    resp = client.post(
+        f"/clanarine/uredi/{c.id}",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "datum_placila": "2024-03-15",
+            "znesek": "25",
+            "opombe": "Popravljeno",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(c)
+    assert c.datum_placila == date(2024, 3, 15)
+    assert c.znesek == "25"
+    assert c.opombe == "Popravljeno"
+
+
+def test_uredi_clanarino_neveljavni_datum(client, db):
+    """POST /clanarine/uredi/{id} z napačnim datumom → redirect, vrednost nespremenjena."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan = Clan(priimek="UrejevalecCD", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+    c = Clanarina(clan_id=clan.id, leto=2024, datum_placila=date(2024, 1, 1))
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+
+    resp = client.post(
+        f"/clanarine/uredi/{c.id}",
+        data={"csrf_token": token, "clan_id": clan.id, "datum_placila": "ni-datum"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(c)
+    assert c.datum_placila == date(2024, 1, 1)  # nespremenjen
+
+
+def test_uredi_clanarino_idor_blokiran(client, db):
+    """IDOR: uredi z napačnim clan_id ne sme posodobiti clanarine."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan_a = Clan(priimek="ClanAU", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    clan_b = Clan(priimek="ClanBU", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add_all([clan_a, clan_b])
+    db.commit()
+    db.refresh(clan_a)
+    db.refresh(clan_b)
+    c = Clanarina(clan_id=clan_a.id, leto=2024, datum_placila=date(2024, 1, 1), znesek="20")
+    db.add(c)
+    db.commit()
+    db.refresh(c)
+
+    resp = client.post(
+        f"/clanarine/uredi/{c.id}",
+        data={"csrf_token": token, "clan_id": clan_b.id, "datum_placila": "2024-06-01", "znesek": "99"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(c)
+    assert c.znesek == "20"  # nespremenjen
+
+
+# ---------------------------------------------------------------------------
+# Uredi aktivnosti
+# ---------------------------------------------------------------------------
+
+def test_uredi_aktivnost_post(client, db):
+    """POST /aktivnosti/uredi/{id} → posodobi opis, leto, datum, ure."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan = Clan(priimek="UrejevalecA", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+    a = Aktivnost(clan_id=clan.id, leto=2023, opis="Stara aktivnost", delovne_ure=2.0)
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+
+    resp = client.post(
+        f"/aktivnosti/uredi/{a.id}",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "leto": 2024,
+            "datum": "2024-05-10",
+            "opis": "Nova aktivnost",
+            "delovne_ure": "4.5",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(a)
+    assert a.leto == 2024
+    assert a.datum == date(2024, 5, 10)
+    assert a.opis == "Nova aktivnost"
+    assert a.delovne_ure == 4.5
+
+
+def test_uredi_aktivnost_neveljavni_datum(client, db):
+    """POST /aktivnosti/uredi/{id} z napačnim datumom → redirect, opis nespremenjen."""
+    token = _login_csrf(client, db, vloga="urednik")
+    clan = Clan(priimek="UrejevalecAD", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+    a = Aktivnost(clan_id=clan.id, leto=2023, opis="Original")
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+
+    resp = client.post(
+        f"/aktivnosti/uredi/{a.id}",
+        data={
+            "csrf_token": token,
+            "clan_id": clan.id,
+            "leto": 2023,
+            "datum": "ni-datum",
+            "opis": "Spremenjen",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(a)
+    assert a.opis == "Original"  # nespremenjen
+
+
+def test_uredi_aktivnost_brez_pravic(client, db):
+    """Bralec ne sme urejati aktivnosti."""
+    token = _login_csrf(client, db, vloga="bralec")
+    clan = Clan(priimek="UrejevalecAP", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+    a = Aktivnost(clan_id=clan.id, leto=2023, opis="Original")
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+
+    resp = client.post(
+        f"/aktivnosti/uredi/{a.id}",
+        data={"csrf_token": token, "clan_id": clan.id, "leto": 2023, "datum": "", "opis": "Spremenjen"},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    db.refresh(a)
+    assert a.opis == "Original"  # nespremenjen
+
+
+def test_izbrisi_aktivnost_idor_blokiran(client, db):
+    """Urednik ne sme brisati aktivnosti drugega člana z napačnim clan_id (IDOR zaščita)."""
+    token = _login_csrf(client, db)
+    clan_a = Clan(priimek="ClanA_AkIdr", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    clan_b = Clan(priimek="ClanB_AkIdr", ime="Test", tip_clanstva="Osebni", aktiven=True)
+    db.add_all([clan_a, clan_b])
+    db.commit()
+    db.refresh(clan_a)
+    db.refresh(clan_b)
+    a = Aktivnost(clan_id=clan_a.id, leto=2023, opis="Original aktivnost")
+    db.add(a)
+    db.commit()
+    db.refresh(a)
+    aktivnost_id = a.id
+
+    # Pošljemo pravilen aktivnost_id, a napačen clan_id (clan_b)
+    resp = client.post(
+        f"/aktivnosti/izbrisi/{aktivnost_id}",
+        data={"csrf_token": token, "clan_id": clan_b.id},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    # Aktivnost mora ostati v bazi
+    assert db.query(Aktivnost).filter(Aktivnost.id == aktivnost_id).first() is not None
+
+
+def test_neplacniki_clan_z_vnosom_brez_datuma(client, db):
+    """Član z Clanarina vnosom brez datum_placila mora biti med neplacniki."""
+    from unittest.mock import patch
+    _login(client, db)
+    clan = Clan(priimek="NeplNoDatum", ime="Test", tip_clanstva="Osebni", aktiven=True,
+                elektronska_posta="neplacnik@test.si")
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+
+    # Clanarina obstaja za leto, ampak datum_placila je None
+    c = Clanarina(clan_id=clan.id, leto=date.today().year, datum_placila=None)
+    db.add(c)
+    db.commit()
+
+    # Preverimo da je člen v neplacniki filtru (prek clani.py, ne obvestila)
+    resp = client.get(f"/clani?placal=ne&aktiven=da")
+    assert resp.status_code == 200
+    assert "NeplNoDatum" in resp.text

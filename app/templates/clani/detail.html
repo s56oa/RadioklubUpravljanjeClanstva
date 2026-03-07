@@ -252,6 +252,15 @@
               {% if is_editor %}
               <td class="text-center">
                 {% if c %}
+                <button class="btn btn-outline-secondary btn-sm py-0"
+                        data-bs-toggle="modal" data-bs-target="#modalUrediClanarino"
+                        data-id="{{ c.id }}" data-clan="{{ clan.id }}"
+                        data-leto="{{ leto }}"
+                        data-datum-placila="{{ c.datum_placila.isoformat() if c.datum_placila else '' }}"
+                        data-znesek="{{ c.znesek or '' }}"
+                        data-opombe="{{ c.opombe or '' }}">
+                  <i class="bi bi-pencil"></i>
+                </button>
                 <form method="post" action="/clanarine/izbrisi/{{ c.id }}" class="d-inline"
                       onsubmit="return confirm('Izbriši vnos za {{ leto }}?')">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -362,6 +371,15 @@
               <td>{{ a.delovne_ure if a.delovne_ure is not none else '' }}</td>
               {% if is_editor %}
               <td class="text-center">
+                <button class="btn btn-outline-secondary btn-sm py-0"
+                        data-bs-toggle="modal" data-bs-target="#modalUrediAktivnost"
+                        data-id="{{ a.id }}" data-clan="{{ clan.id }}"
+                        data-leto="{{ a.leto }}"
+                        data-datum="{{ a.datum.isoformat() if a.datum else '' }}"
+                        data-opis="{{ a.opis }}"
+                        data-delovne-ure="{{ a.delovne_ure if a.delovne_ure is not none else '' }}">
+                  <i class="bi bi-pencil"></i>
+                </button>
                 <form method="post" action="/aktivnosti/izbrisi/{{ a.id }}" class="d-inline"
                       onsubmit="return confirm('Izbriši ta vnos aktivnosti?')">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -447,7 +465,7 @@
               <th>Datum od</th>
               <th>Datum do</th>
               <th>Opombe</th>
-              {% if is_admin %}<th class="text-center">Akcija</th>{% endif %}
+              {% if is_editor %}<th class="text-center">Akcija</th>{% endif %}
             </tr>
           </thead>
           <tbody>
@@ -468,8 +486,18 @@
                 {% endif %}
               </td>
               <td>{{ v.opombe or '' }}</td>
-              {% if is_admin %}
+              {% if is_editor %}
               <td class="text-center">
+                <button class="btn btn-outline-secondary btn-sm py-0"
+                        data-bs-toggle="modal" data-bs-target="#modalUrediVlogo"
+                        data-id="{{ v.id }}" data-clan="{{ clan.id }}"
+                        data-naziv="{{ v.naziv }}"
+                        data-datum-od="{{ v.datum_od.isoformat() }}"
+                        data-datum-do="{{ v.datum_do.isoformat() if v.datum_do else '' }}"
+                        data-opombe="{{ v.opombe or '' }}">
+                  <i class="bi bi-pencil"></i>
+                </button>
+                {% if is_admin %}
                 <form method="post" action="/vloge/izbrisi/{{ v.id }}" class="d-inline"
                       onsubmit="return confirm('Izbriši vlogo {{ v.naziv }}?')">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
@@ -478,6 +506,7 @@
                     <i class="bi bi-trash"></i>
                   </button>
                 </form>
+                {% endif %}
               </td>
               {% endif %}
             </tr>
@@ -493,6 +522,91 @@
       </div>
     </div>
   </div>
+
+<!-- Modal urejanja clanarine -->
+{% if is_editor %}
+<div class="modal fade" id="modalUrediClanarino" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-pencil me-2"></i>Uredi vnos članarine</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="formUrediClanarino" method="post" action="">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <input type="hidden" name="clan_id" id="urediClanarinaClId">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Leto</label>
+            <input type="text" id="urediClanarinaLetoLabel" class="form-control form-control-sm" disabled>
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Datum plačila</label>
+            <input type="date" name="datum_placila" id="urediClanarinarDatumPlacila" class="form-control form-control-sm">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Znesek (€)</label>
+            <input type="text" name="znesek" id="urediClanarinaZnesek" class="form-control form-control-sm" placeholder="npr. 25">
+          </div>
+          <div class="mb-2">
+            <label class="form-label small mb-1">Opomba</label>
+            <input type="text" name="opombe" id="urediClanarinaOpombe" class="form-control form-control-sm" placeholder="Neobvezno...">
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Prekliči</button>
+          <button type="submit" class="btn btn-success btn-sm"><i class="bi bi-save me-1"></i>Shrani</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal urejanja aktivnosti -->
+{% if is_editor %}
+<div class="modal fade" id="modalUrediAktivnost" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-pencil me-2"></i>Uredi aktivnost</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="formUrediAktivnost" method="post" action="">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <input type="hidden" name="clan_id" id="urediAktivnostClanId">
+          <div class="row g-2">
+            <div class="col-md-3">
+              <label class="form-label small mb-1">Leto <span class="text-danger">*</span></label>
+              <input type="number" name="leto" id="urediAktivnostLeto" class="form-control form-control-sm"
+                     min="2000" max="2099" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small mb-1">Datum aktivnosti</label>
+              <input type="date" name="datum" id="urediAktivnostDatum" class="form-control form-control-sm">
+            </div>
+            <div class="col-md-5">
+              <label class="form-label small mb-1">Delovne ure</label>
+              <input type="number" name="delovne_ure" id="urediAktivnostUre" class="form-control form-control-sm"
+                     min="0" max="9999" step="0.5">
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label small mb-1">Aktivnost <span class="text-danger">*</span></label>
+            <textarea name="opis" id="urediAktivnostOpis" class="form-control form-control-sm"
+                      rows="3" maxlength="1000" required></textarea>
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Prekliči</button>
+          <button type="submit" class="btn btn-info btn-sm"><i class="bi bi-save me-1"></i>Shrani</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+{% endif %}
 
 <!-- Modal UPN QR -->
 <div class="modal fade" id="modalUpnQr" tabindex="-1">
@@ -533,6 +647,53 @@
           <button type="submit" class="btn btn-danger">Izbriši</button>
         </form>
       </div>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal urejanja vloge -->
+{% if is_editor %}
+<div class="modal fade" id="modalUrediVlogo" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header py-2">
+        <h6 class="modal-title"><i class="bi bi-pencil me-2"></i>Uredi vlogo</h6>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="formUrediVlogo" method="post" action="">
+        <div class="modal-body">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+          <input type="hidden" name="clan_id" id="urediVlogaClanId">
+          <div class="mb-2">
+            <label class="form-label small mb-1">Vloga / funkcija <span class="text-danger">*</span></label>
+            <select name="naziv" id="urediVlogaNaziv" class="form-select form-select-sm" required>
+              <option value="">– izberite –</option>
+              {% for v in vloge_clanov %}
+              <option value="{{ v }}">{{ v }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="row g-2">
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Datum od <span class="text-danger">*</span></label>
+              <input type="date" name="datum_od" id="urediVlogaDatumOd" class="form-control form-control-sm" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small mb-1">Datum do</label>
+              <input type="date" name="datum_do" id="urediVlogaDatumDo" class="form-control form-control-sm">
+            </div>
+          </div>
+          <div class="mt-2">
+            <label class="form-label small mb-1">Opombe</label>
+            <input type="text" name="opombe" id="urediVlogaOpombe" class="form-control form-control-sm" placeholder="Neobvezno...">
+          </div>
+        </div>
+        <div class="modal-footer py-2">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Prekliči</button>
+          <button type="submit" class="btn btn-warning btn-sm"><i class="bi bi-save me-1"></i>Shrani</button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -579,5 +740,55 @@ document.querySelectorAll('input[name="filterAktivnosti"]').forEach(function(rad
     else if (this.id === 'fa-10') filterTabela('tabelaAktivnosti', 10);
   });
 });
+
+// Modal uredi clanarine – prenos podatkov
+var modalUrediClanarino = document.getElementById('modalUrediClanarino');
+if (modalUrediClanarino) {
+  modalUrediClanarino.addEventListener('show.bs.modal', function(event) {
+    var btn = event.relatedTarget;
+    document.getElementById('formUrediClanarino').action = '/clanarine/uredi/' + btn.dataset.id;
+    document.getElementById('urediClanarinaClId').value = btn.dataset.clan;
+    document.getElementById('urediClanarinaLetoLabel').value = btn.dataset.leto;
+    document.getElementById('urediClanarinarDatumPlacila').value = btn.dataset.datumPlacila || '';
+    document.getElementById('urediClanarinaZnesek').value = btn.dataset.znesek || '';
+    document.getElementById('urediClanarinaOpombe').value = btn.dataset.opombe || '';
+  });
+}
+
+// Modal uredi aktivnost – prenos podatkov
+var modalUrediAktivnost = document.getElementById('modalUrediAktivnost');
+if (modalUrediAktivnost) {
+  modalUrediAktivnost.addEventListener('show.bs.modal', function(event) {
+    var btn = event.relatedTarget;
+    document.getElementById('formUrediAktivnost').action = '/aktivnosti/uredi/' + btn.dataset.id;
+    document.getElementById('urediAktivnostClanId').value = btn.dataset.clan;
+    document.getElementById('urediAktivnostLeto').value = btn.dataset.leto;
+    document.getElementById('urediAktivnostDatum').value = btn.dataset.datum || '';
+    document.getElementById('urediAktivnostOpis').value = btn.dataset.opis || '';
+    document.getElementById('urediAktivnostUre').value = btn.dataset.delovneUre || '';
+  });
+}
+
+// Modal uredi vlogo – prenos podatkov
+var modalUrediVlogo = document.getElementById('modalUrediVlogo');
+if (modalUrediVlogo) {
+  modalUrediVlogo.addEventListener('show.bs.modal', function(event) {
+    var btn = event.relatedTarget;
+    document.getElementById('formUrediVlogo').action = '/vloge/' + btn.dataset.id + '/uredi';
+    document.getElementById('urediVlogaClanId').value = btn.dataset.clan;
+    document.getElementById('urediVlogaDatumOd').value = btn.dataset.datumOd;
+    document.getElementById('urediVlogaDatumDo').value = btn.dataset.datumDo || '';
+    document.getElementById('urediVlogaOpombe').value = btn.dataset.opombe || '';
+    var sel = document.getElementById('urediVlogaNaziv');
+    sel.value = btn.dataset.naziv;
+    if (!sel.value) {
+      var opt = document.createElement('option');
+      opt.value = btn.dataset.naziv;
+      opt.textContent = btn.dataset.naziv;
+      sel.appendChild(opt);
+      sel.value = btn.dataset.naziv;
+    }
+  });
+}
 </script>
 {% endblock %}

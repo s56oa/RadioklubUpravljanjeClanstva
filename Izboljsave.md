@@ -68,6 +68,11 @@
 | QR koda v emailu – CID inline + per-template konfiguracija | ✅ | v1.20 | CID inline attachment (`MIMEMultipart("related")`, `MIMEImage`, `Content-ID: <qr_koda>`) namesto `data:` URI (združljivost z Gmail/Outlook/Apple Mail); polje `vkljuci_qr` na `EmailPredloga` (Alembic 007); checkbox v forma.html; QR značka v seznam.html; seed upsert; privzeto True za plačilni predlogi, False za ostale |
 | Varnostni popravki | ✅ | v1.20 | Opozorilo za SMTP "plain" način v nastavitvenem UI; generično SMTP napako sporočilo (brez razkritja internih detajlov); `data-geslo` namesto inline JS pri kopiranju začasnega gesla; reset geslo `_generiraj_geslo(12)` → `(16)` (bug v reset handlerju); čiščenje `data/tmp/*.xlsx` ob zagonu |
 | Modernizacija kode | ✅ | v1.20 | `datetime.utcnow()` → `datetime.now(timezone.utc)` v vseh naših datotekah (4 datoteke); `alembic.ini path_separator = os`; pravopisna popravka "členarine" → "članarine" |
+| Inline urejanje vloge | ✅ | v1.21 | Bootstrap modal na kartici člana; editor+ sme urejati (naziv, datum_od, datum_do, opombe); `POST /vloge/{id}/uredi`; audit log; brez GET round-trip |
+| Multi-select filtri na seznamu članov | ✅ | v1.21 | Zamenjani single-select dropdowni za tip, veljavnost RD in operaterski razred z Bootstrap dropdown+checkboxi (`data-bs-auto-close="outside"`); `Query(default=[])` multi-value FastAPI parametri; backward compatible z enojnimi vrednostmi |
+| Excel izvoz filtriranega seznama | ✅ | v1.21 | `GET /izvoz/clani-filtrirani` (editor+); upošteva vse aktivne filtre (q, tip, rd, operaterski_razred, aktiven, placal, leto); isti 18 stolpcev kot `backup_excel`; gumb na seznam.html z JS, ki prenaša URL parametre; audit log |
+| AKOS API uvoz (async, 10-letni filter, zaščita pred znižanjem) | ✅ | v1.21 | httpx + `asyncio.Semaphore(5)` za sočasne API klice; filter za datume starejše od 10 let (vrnjena vrednost `27.06.1991` → None); `veljavnost_rd` se ne posodobi, če je nova vrednost starejša od obstoječe (zaščita pred znižanjem) |
+| Varnostni popravki (celovit pregled) | ✅ | v1.21 | IDOR zaščita vloge (uredi+izbrisi) in aktivnosti (izbrisi); popravek logike filtra neplačnikov (`datum_placila != None`); `try/except ValueError` za datum pri dodajanju plačil in aktivnosti; audit log pokritost vseh manjkajočih CRUD endpointov; `ContentSizeLimitMiddleware` utrjen (specifične upload poti + 411); čiščenje JSON tmp datotek; DRY email.py (`_clan_context()`) |
 
 ---
 
@@ -170,4 +175,4 @@ Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhn
 
 ---
 
-*Zadnja posodobitev: 2026-03-06 (v1.20)*
+*Zadnja posodobitev: 2026-03-07 (v1.21)*

@@ -335,7 +335,11 @@ async def posli_post(
             )
         else:
             # Privzeto: vsi aktivni neplačniki za izbrano leto
-            clan_ids_placali = db.query(Clanarina.clan_id).filter(Clanarina.leto == leto)
+            # Štejemo samo tiste z datum_placila (enako kot v clani.py seznam)
+            clan_ids_placali = db.query(Clanarina.clan_id).filter(
+                Clanarina.leto == leto,
+                Clanarina.datum_placila != None,
+            )
             clani = (
                 db.query(Clan)
                 .filter(Clan.aktiven == True, ~Clan.id.in_(clan_ids_placali))

@@ -66,6 +66,28 @@ def _qr_png_bytes(clan: Clan, leto: int, db: Session) -> bytes:
     )
 
 
+def _clan_context(clan: Clan, leto: int, qr_img_tag: str = "") -> dict:
+    """Vrne Jinja2 kontekst za predlogo (skupen za telo in zadevo)."""
+    return {
+        "ime": clan.ime or "",
+        "priimek": clan.priimek or "",
+        "klicni_znak": clan.klicni_znak or "",
+        "leto": leto,
+        "qr_koda": qr_img_tag,
+        "naslov_ulica": clan.naslov_ulica or "",
+        "naslov_posta": clan.naslov_posta or "",
+        "tip_clanstva": clan.tip_clanstva or "",
+        "klicni_znak_nosilci": clan.klicni_znak_nosilci or "",
+        "operaterski_razred": clan.operaterski_razred or "",
+        "mobilni_telefon": clan.mobilni_telefon or "",
+        "telefon_doma": clan.telefon_doma or "",
+        "elektronska_posta": clan.elektronska_posta or "",
+        "veljavnost_rd": clan.veljavnost_rd.strftime("%d. %m. %Y") if clan.veljavnost_rd else "",
+        "es_stevilka": str(clan.es_stevilka) if clan.es_stevilka else "",
+        "opombe": clan.opombe or "",
+    }
+
+
 def _render_predloga(telo_html: str, clan: Clan, leto: int, qr_img_tag: str) -> str:
     """Renderira HTML predlogo z Jinja2 spremenljivkami.
 
@@ -78,29 +100,8 @@ def _render_predloga(telo_html: str, clan: Clan, leto: int, qr_img_tag: str) -> 
     operaterski_razred, mobilni_telefon, telefon_doma, elektronska_posta,
     veljavnost_rd (DD. MM. LLLL ali ""), es_stevilka, opombe.
     """
-    veljavnost_rd_str = (
-        clan.veljavnost_rd.strftime("%d. %m. %Y") if clan.veljavnost_rd else ""
-    )
     env = SandboxedEnvironment(autoescape=False)
-    tmpl = env.from_string(telo_html)
-    return tmpl.render(
-        ime=clan.ime or "",
-        priimek=clan.priimek or "",
-        klicni_znak=clan.klicni_znak or "",
-        leto=leto,
-        qr_koda=qr_img_tag,
-        naslov_ulica=clan.naslov_ulica or "",
-        naslov_posta=clan.naslov_posta or "",
-        tip_clanstva=clan.tip_clanstva or "",
-        klicni_znak_nosilci=clan.klicni_znak_nosilci or "",
-        operaterski_razred=clan.operaterski_razred or "",
-        mobilni_telefon=clan.mobilni_telefon or "",
-        telefon_doma=clan.telefon_doma or "",
-        elektronska_posta=clan.elektronska_posta or "",
-        veljavnost_rd=veljavnost_rd_str,
-        es_stevilka=str(clan.es_stevilka) if clan.es_stevilka else "",
-        opombe=clan.opombe or "",
-    )
+    return env.from_string(telo_html).render(**_clan_context(clan, leto, qr_img_tag))
 
 
 def posli_email(
@@ -126,28 +127,9 @@ def posli_email(
         qr_img_tag = ""
     html_telo = _render_predloga(telo_predloga, clan, leto, qr_img_tag)
 
-    # Render zadeve (enostavna string zamenjava, iste spremenljivke kot telo)
-    veljavnost_rd_str = (
-        clan.veljavnost_rd.strftime("%d. %m. %Y") if clan.veljavnost_rd else ""
-    )
+    # Render zadeve (iste spremenljivke kot telo, brez qr_koda)
     env = SandboxedEnvironment(autoescape=False)
-    zadeva = env.from_string(zadeva_predloga).render(
-        ime=clan.ime or "",
-        priimek=clan.priimek or "",
-        klicni_znak=clan.klicni_znak or "",
-        leto=leto,
-        naslov_ulica=clan.naslov_ulica or "",
-        naslov_posta=clan.naslov_posta or "",
-        tip_clanstva=clan.tip_clanstva or "",
-        klicni_znak_nosilci=clan.klicni_znak_nosilci or "",
-        operaterski_razred=clan.operaterski_razred or "",
-        mobilni_telefon=clan.mobilni_telefon or "",
-        telefon_doma=clan.telefon_doma or "",
-        elektronska_posta=clan.elektronska_posta or "",
-        veljavnost_rd=veljavnost_rd_str,
-        es_stevilka=str(clan.es_stevilka) if clan.es_stevilka else "",
-        opombe=clan.opombe or "",
-    )
+    zadeva = env.from_string(zadeva_predloga).render(**_clan_context(clan, leto))
     # Zaščita pred email header injection: odstrani CR/LF iz zadeve in naslovov
     zadeva = zadeva.replace("\r", "").replace("\n", " ").strip()
     od = smtp_nastavitve["od"].replace("\r", "").replace("\n", "").strip()
