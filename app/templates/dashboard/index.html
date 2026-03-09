@@ -63,8 +63,13 @@
 <div class="row g-3">
   <div class="col-lg-8">
     <div class="card h-100">
-      <div class="card-header">
-        <i class="bi bi-bar-chart me-1"></i>Plačila članarine po letu
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-bar-chart me-1"></i>Plačila članarine po letu</span>
+        <div class="btn-group btn-group-sm" role="group" id="filterPlacila">
+          <button type="button" class="btn btn-outline-primary" data-n="5">Zadnjih 5 let</button>
+          <button type="button" class="btn btn-outline-primary" data-n="10">Zadnjih 10 let</button>
+          <button type="button" class="btn btn-outline-primary" data-n="0">Vse</button>
+        </div>
       </div>
       <div class="card-body">
         <canvas id="chartPlacila"></canvas>
@@ -87,8 +92,13 @@
   </div>
   <div class="col-12">
     <div class="card">
-      <div class="card-header">
-        <i class="bi bi-clock me-1"></i>Delovne ure po letu
+      <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <span><i class="bi bi-clock me-1"></i>Delovne ure po letu</span>
+        <div class="btn-group btn-group-sm" role="group" id="filterUre">
+          <button type="button" class="btn btn-outline-success" data-n="5">Zadnjih 5 let</button>
+          <button type="button" class="btn btn-outline-success" data-n="10">Zadnjih 10 let</button>
+          <button type="button" class="btn btn-outline-success" data-n="0">Vse</button>
+        </div>
       </div>
       <div class="card-body">
         <canvas id="chartUre"></canvas>
@@ -107,14 +117,23 @@ const tipiLabele = {{ tipi_labele | tojson }};
 const tipiVrednosti = {{ tipi_vrednosti | tojson }};
 const ureData = {{ ure_po_letu | tojson }};
 
+// Pomočnik: obreži podatke na zadnjih n let (n=0 = vse)
+function filtrirajLeta(n) {
+  if (n === 0 || leta.length <= n) return { l: leta, p: placilaData, u: ureData };
+  const l = leta.slice(-n);
+  const p = placilaData.slice(-n);
+  const u = ureData.slice(-n);
+  return { l, p, u };
+}
+
 // Chart 1: Plačila po letu
-new Chart(document.getElementById('chartPlacila'), {
+const chartPlacila = new Chart(document.getElementById('chartPlacila'), {
   type: 'bar',
   data: {
-    labels: leta,
+    labels: [],
     datasets: [{
       label: 'Plačali članarino',
-      data: placilaData,
+      data: [],
       backgroundColor: 'rgba(13, 110, 253, 0.7)',
       borderColor: 'rgba(13, 110, 253, 1)',
       borderWidth: 1,
@@ -150,13 +169,13 @@ if (tipiLabele.length > 0) {
 }
 
 // Chart 3: Delovne ure po letu
-new Chart(document.getElementById('chartUre'), {
+const chartUre = new Chart(document.getElementById('chartUre'), {
   type: 'bar',
   data: {
-    labels: leta,
+    labels: [],
     datasets: [{
       label: 'Delovne ure',
-      data: ureData,
+      data: [],
       backgroundColor: 'rgba(25, 135, 84, 0.7)',
       borderColor: 'rgba(25, 135, 84, 1)',
       borderWidth: 1,
@@ -168,5 +187,32 @@ new Chart(document.getElementById('chartUre'), {
     plugins: { legend: { display: false } }
   }
 });
+
+// Posodobi oba grafa in označi aktiven filter
+function nastaviFilter(n) {
+  const { l, p, u } = filtrirajLeta(n);
+  chartPlacila.data.labels = l;
+  chartPlacila.data.datasets[0].data = p;
+  chartPlacila.update();
+  chartUre.data.labels = l;
+  chartUre.data.datasets[0].data = u;
+  chartUre.update();
+  // Aktivni gumbi
+  document.querySelectorAll('#filterPlacila button, #filterUre button').forEach(function(btn) {
+    const active = parseInt(btn.dataset.n) === n;
+    btn.classList.toggle('active', active);
+  });
+}
+
+// Povezi gumbe
+document.querySelectorAll('#filterPlacila button').forEach(function(btn) {
+  btn.addEventListener('click', function() { nastaviFilter(parseInt(this.dataset.n)); });
+});
+document.querySelectorAll('#filterUre button').forEach(function(btn) {
+  btn.addEventListener('click', function() { nastaviFilter(parseInt(this.dataset.n)); });
+});
+
+// Privzeto: zadnjih 5 let
+nastaviFilter(5);
 </script>
 {% endblock %}

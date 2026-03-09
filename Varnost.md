@@ -1,6 +1,6 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-07 (v1.21)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-09 (v1.22)*
 
 ---
 
@@ -229,6 +229,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.19 | `/backup-excel` omejen samo na admin; IDOR zaščita pri brisanju članarine (`clan_id` validacija); validacija formata datuma veljavnosti RD in ES-številke pri vnosu/urejanju člana; DB indeksi za `clani.aktiven`, `clanarine.leto`, `aktivnosti.leto` (Alembic 006) |
 | v1.20 | Opozorilo za SMTP "plain" način v nastavitvenem UI; generično SMTP napako sporočilo (polna napaka samo v `app.log`); `data-geslo` atribut namesto inline JS `onclick` pri kopiranju začasnega gesla (preprečitev potencialnega JS injection); reset geslo `_generiraj_geslo(12)` → `(16)` (popravek hrošča – reset handler ni upošteval politike min. 14 znakov); čiščenje `data/tmp/*.xlsx` ob zagonu (odstranitev zaostalih datotek z osebnimi podatki) |
 | v1.21 | IDOR zaščita vloge (uredi + izbrisi) in aktivnosti (izbrisi) – dodan `clan_id` pogoj v DB poizvedbah; popravek filtra neplačnikov v `/obvestila` (manjkajoč pogoj `datum_placila != None`); `try/except ValueError` pri dodajanju plačil in aktivnosti; razširjena pokritost audit loga (vloge, aktivnosti, clanarine, uporabniki); `ContentSizeLimitMiddleware` utrjen (specifične upload poti + HTTP 411); čiščenje AKOS API JSON tmp datotek ob zagonu; refaktoriranje email.py (`_clan_context()` pomočnik za odpravo podvojene kode) |
+| v1.22 | Brez novih varnostnih tveganj; spremembe so UI/UX (date sortiranje v DataTables, dashboard filtri) – brez novih endpointov, brez novih vhodnih podatkov, brez sprememb avtorizacije |
 
 ---
 

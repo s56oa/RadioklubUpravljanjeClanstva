@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.21 | Datum: 2026-03-07*
+*Različica 1.22 | Datum: 2026-03-09*
 
 ---
 
@@ -556,11 +556,20 @@ Prikazuje statistični pregled stanja kluba za hitro obvladovanje situacije.
 
 ### Grafi
 
-Trije interaktivni grafi prikazujejo podatke za **zadnjih 10 let**:
+Trije interaktivni grafi:
 
 1. **Plačila članarine po letu** – stolpčni grafikon s številom plačil za vsako leto
 2. **Tipi članstva** – tortni grafikon z razporeditvijo aktivnih članov po tipu
 3. **Delovne ure po letu** – stolpčni grafikon s skupnimi delovnimi urami
+
+#### Filtri obdobja (Plačila in Delovne ure)
+
+V glavi grafov Plačila in Delovne ure so gumbi za izbiro obdobja:
+- **Zadnjih 5 let** – privzeto; prikaže samo zadnjih 5 let
+- **Zadnjih 10 let** – prikaže zadnje desetletje
+- **Vse** – prikaže vsa leta v bazi
+
+Oba grafa sta sinhronizirana – klik na gumb kateregakoli grafa posodobi oba hkrati.
 
 > Grafi se naložijo iz CDN (Chart.js) – za prikaz je potrebna internetna povezava.
 
@@ -787,4 +796,4 @@ Preglejte predogled in kliknite **Potrdi posodobitev**. Za preklic kliknite **Pr
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.21 (2026-03-07)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.22 (2026-03-09)*

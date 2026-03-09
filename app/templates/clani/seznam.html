@@ -162,7 +162,7 @@
               </span>
             </td>
             <td>{{ clan.operaterski_razred or '–' }}</td>
-            <td>
+            <td data-order="{{ clan.veljavnost_rd.isoformat() if clan.veljavnost_rd else '' }}">
               {% if clan.veljavnost_rd %}
                 {% if clan.veljavnost_rd < danes %}
                   <span class="text-danger" title="Potekla {{ clan.veljavnost_rd.strftime('%d.%m.%Y') }}">

@@ -73,6 +73,8 @@
 | Excel izvoz filtriranega seznama | ✅ | v1.21 | `GET /izvoz/clani-filtrirani` (editor+); upošteva vse aktivne filtre (q, tip, rd, operaterski_razred, aktiven, placal, leto); isti 18 stolpcev kot `backup_excel`; gumb na seznam.html z JS, ki prenaša URL parametre; audit log |
 | AKOS API uvoz (async, 10-letni filter, zaščita pred znižanjem) | ✅ | v1.21 | httpx + `asyncio.Semaphore(5)` za sočasne API klice; filter za datume starejše od 10 let (vrnjena vrednost `27.06.1991` → None); `veljavnost_rd` se ne posodobi, če je nova vrednost starejša od obstoječe (zaščita pred znižanjem) |
 | Varnostni popravki (celovit pregled) | ✅ | v1.21 | IDOR zaščita vloge (uredi+izbrisi) in aktivnosti (izbrisi); popravek logike filtra neplačnikov (`datum_placila != None`); `try/except ValueError` za datum pri dodajanju plačil in aktivnosti; audit log pokritost vseh manjkajočih CRUD endpointov; `ContentSizeLimitMiddleware` utrjen (specifične upload poti + 411); čiščenje JSON tmp datotek; DRY email.py (`_clan_context()`) |
+| Datumsko sortiranje v DataTables | ✅ | v1.22 | `data-order` atribut z ISO datumom (YYYY-MM-DD) na `<td>` – seznam članov (Veljavnost RD), evidenca plačil (Datum plačila), evidenca aktivnosti (Datum); DataTables sortira po ISO vrednosti namesto prikazanega teksta (`DD.MM.YYYY`) |
+| Filtri obdobja na dashboard grafih | ✅ | v1.22 | Gumbi Zadnjih 5 let / Zadnjih 10 let / Vse v glavi grafov Plačila po letu in Delovne ure po letu; privzeto: Zadnjih 5 let; client-side JS (`filtrirajLeta()` obreže `leta[]`, `placilaData[]`, `ureData[]`); oba grafa sta sinhronizirana na isti filter |
 
 ---
 
@@ -175,4 +177,4 @@ Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhn
 
 ---
 
-*Zadnja posodobitev: 2026-03-07 (v1.21)*
+*Zadnja posodobitev: 2026-03-09 (v1.22)*

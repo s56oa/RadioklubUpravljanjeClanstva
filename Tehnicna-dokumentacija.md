@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.21 | Datum: 2026-03-07*
+*Različica 1.22 | Datum: 2026-03-09*
 
 ---
 
@@ -1181,4 +1181,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.21*
+*Radio klub Člani – tehnična dokumentacija, različica 1.22*

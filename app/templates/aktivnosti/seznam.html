@@ -45,7 +45,7 @@
           {% for a in aktivnosti %}
           <tr>
             <td>{{ a.leto }}</td>
-            <td>{{ a.datum.strftime('%d.%m.%Y') if a.datum else '–' }}</td>
+            <td data-order="{{ a.datum.isoformat() if a.datum else '' }}">{{ a.datum.strftime('%d.%m.%Y') if a.datum else '–' }}</td>
             <td>
               {% if a.clan %}
               <a href="/clani/{{ a.clan_id }}" class="text-decoration-none">

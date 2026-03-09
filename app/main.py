@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.21"
-APP_RELEASE_DATE = "2026-03-07"
+APP_VERSION = "1.22"
+APP_RELEASE_DATE = "2026-03-09"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:

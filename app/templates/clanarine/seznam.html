@@ -64,7 +64,7 @@
           {% for c in clanarine %}
           <tr>
             <td>{{ c.leto }}</td>
-            <td>
+            <td data-order="{{ c.datum_placila.isoformat() if c.datum_placila else '' }}">
               {% if c.datum_placila %}
               <span class="text-success">{{ c.datum_placila.strftime('%d.%m.%Y') }}</span>
               {% else %}

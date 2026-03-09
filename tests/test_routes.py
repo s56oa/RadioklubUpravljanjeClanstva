@@ -73,7 +73,7 @@ def test_verzijska_znacka_vsebuje_verzijo(client, db):
     _login(client, db)
     resp = client.get("/clani")
     assert resp.status_code == 200
-    assert "1.21" in resp.text
+    assert "1.22" in resp.text
 
 
 def test_get_clani_brez_seje(client):
