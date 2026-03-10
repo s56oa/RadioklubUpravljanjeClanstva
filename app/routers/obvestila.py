@@ -13,6 +13,8 @@ from ..auth import require_login, is_admin, is_editor as _is_editor
 from ..csrf import get_csrf_token, csrf_protect
 from ..email import get_smtp_nastavitve, posli_email
 from ..audit_log import log_akcija
+from ..config import get_nastavitev
+from ..kartica import generiraj_kartico_pdf, get_kartica_polja, kartica_filename
 
 logger = logging.getLogger(__name__)
 
@@ -91,6 +93,7 @@ async def nova_predloga_post(
     zadeva: str = Form(...),
     telo_html: str = Form(...),
     vkljuci_qr: bool = Form(False),
+    prilozi_kartico: bool = Form(False),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -105,6 +108,7 @@ async def nova_predloga_post(
         telo_html=telo_html,
         je_privzeta=False,
         vkljuci_qr=vkljuci_qr,
+        prilozi_kartico=prilozi_kartico,
         created_at=datetime.now(timezone.utc),
     )
     db.add(predloga)
@@ -156,6 +160,7 @@ async def uredi_predloga_post(
     zadeva: str = Form(...),
     telo_html: str = Form(...),
     vkljuci_qr: bool = Form(False),
+    prilozi_kartico: bool = Form(False),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -171,6 +176,7 @@ async def uredi_predloga_post(
     predloga.zadeva = zadeva.strip()
     predloga.telo_html = telo_html
     predloga.vkljuci_qr = vkljuci_qr
+    predloga.prilozi_kartico = prilozi_kartico
     db.commit()
     log_akcija(db, user.get("uporabnisko_ime"), "email_predloga_uredi", f"Predloga urejena: {naziv}")
     request.session["obv_flash"] = f"Predloga \"{naziv}\" je bila posodobljena."
@@ -281,13 +287,27 @@ async def posli_post(
     preskoceno = 0
 
     qr = predloga.vkljuci_qr if predloga else False
+    prilozi_kartico = predloga.prilozi_kartico if predloga else False
+
+    # Priprava konteksta za kartico (samo če je potrebno)
+    if prilozi_kartico:
+        klub_ime = get_nastavitev(db, "klub_ime", "")
+        klub_oznaka = get_nastavitev(db, "klub_oznaka", "")
+        kartica_polja = get_kartica_polja(db)
+
+    def _priponke_za_clana(clan: Clan) -> list[tuple[str, bytes, str]] | None:
+        if not prilozi_kartico:
+            return None
+        pdf_bytes = generiraj_kartico_pdf(clan, leto, klub_ime, klub_oznaka, kartica_polja)
+        return [(kartica_filename(clan, clan.id, leto), pdf_bytes, "application/pdf")]
 
     if clan_id and clan_id.strip().isdigit():
         # Pošlji posamezniku
         clan = db.query(Clan).filter(Clan.id == int(clan_id)).first()
         if clan and clan.elektronska_posta and "@" in clan.elektronska_posta:
             try:
-                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr)
+                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr,
+                            priponke=_priponke_za_clana(clan))
                 poslano = 1
                 log_akcija(db, user.get("uporabnisko_ime"), "email_poslan",
                            f"Email poslan: {clan.priimek} {clan.ime} ({clan.elektronska_posta}), leto {leto}")
@@ -364,7 +384,8 @@ async def posli_post(
                 preskoceno += 1
                 continue
             try:
-                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr)
+                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr,
+                            priponke=_priponke_za_clana(clan))
                 poslano += 1
             except Exception as e:
                 logger.error(f"Napaka pri pošiljanju emaila za {clan.elektronska_posta}: {e}")

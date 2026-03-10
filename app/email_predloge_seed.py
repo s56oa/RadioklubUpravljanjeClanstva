@@ -142,42 +142,48 @@ _PRIVZETE_PREDLOGE = [
         "zadeva": "Poziv k plačilu članarine za leto {{ leto }}",
         "telo_html": _PREDLOGA_POZIV,
         "vkljuci_qr": True,
+        "prilozi_kartico": False,
     },
     {
         "naziv": "Opomnik za zamudnike",
         "zadeva": "Opomnik – neplačana članarina za leto {{ leto }}",
         "telo_html": _PREDLOGA_OPOMNIK,
         "vkljuci_qr": True,
+        "prilozi_kartico": False,
     },
     {
         "naziv": "Potečena veljavnost radijskega dovoljenja",
         "zadeva": "Obvestilo o potečeni veljavnosti radijskega dovoljenja – {{ priimek }} {{ ime }}",
         "telo_html": _PREDLOGA_RD,
         "vkljuci_qr": False,
+        "prilozi_kartico": False,
     },
     {
         "naziv": "Potrdi podatke člana",
         "zadeva": "Prosimo preverite vaše podatke v evidenci kluba",
         "telo_html": _PREDLOGA_PODATKI,
         "vkljuci_qr": False,
+        "prilozi_kartico": False,
     },
     {
         "naziv": "Pošiljanje članske kartice",
         "zadeva": "Članska izkaznica {{ leto }} – {{ klub_oznaka }}",
         "telo_html": _PREDLOGA_KARTICA,
         "vkljuci_qr": False,
+        "prilozi_kartico": True,
     },
     {
         "naziv": "Univerzalna predloga",
         "zadeva": "Obvestilo kluba – {{ priimek }} {{ ime }}",
         "telo_html": _PREDLOGA_UNIVERZALNA,
         "vkljuci_qr": False,
+        "prilozi_kartico": False,
     },
 ]
 
 
 def seed_predloge(db: Session) -> None:
-    """Ustvari privzete predloge, ki še ne obstajajo; posodobi vkljuci_qr obstoječih."""
+    """Ustvari privzete predloge, ki še ne obstajajo; posodobi vkljuci_qr in prilozi_kartico."""
     obstoječe = {
         p.naziv: p for p in db.query(EmailPredloga).filter(EmailPredloga.je_privzeta == True).all()
     }
@@ -185,8 +191,8 @@ def seed_predloge(db: Session) -> None:
     spremenjeno = False
     for p in _PRIVZETE_PREDLOGE:
         if p["naziv"] in obstoječe:
-            # Posodobi vkljuci_qr na obstoječi predlogi (migracija na vkljuci_qr)
             obstoječe[p["naziv"]].vkljuci_qr = p["vkljuci_qr"]
+            obstoječe[p["naziv"]].prilozi_kartico = p["prilozi_kartico"]
             spremenjeno = True
         else:
             db.add(EmailPredloga(
@@ -195,6 +201,7 @@ def seed_predloge(db: Session) -> None:
                 telo_html=p["telo_html"],
                 je_privzeta=True,
                 vkljuci_qr=p["vkljuci_qr"],
+                prilozi_kartico=p["prilozi_kartico"],
                 created_at=zdaj,
             ))
             spremenjeno = True

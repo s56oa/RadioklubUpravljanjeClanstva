@@ -398,6 +398,57 @@ def test_posli_bulk_placniki(client, db):
     assert mock_smtp_cls.return_value.__enter__.return_value.send_message.call_count == 1
 
 
+def test_posli_bulk_z_kartico(client, db):
+    """Predloga z prilozi_kartico=True → vsak email dobi PDF priponko."""
+    token = _login(client, db)
+    c1 = _nov_clan(db, ime="Ana", priimek="Kos", email="ana@test.si")
+    c2 = _nov_clan(db, ime="Bor", priimek="Rok", email="bor@test.si")
+    # Predloga z rilozi_kartico=True
+    p = EmailPredloga(
+        naziv="Kartica predloga",
+        zadeva="Kartica {{ leto }}",
+        telo_html="<p>Kartica {{ priimek }}</p>",
+        je_privzeta=False,
+        vkljuci_qr=False,
+        prilozi_kartico=True,
+        created_at=datetime.now(timezone.utc),
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    _nastavi_smtp(db)
+
+    with patch("app.email.smtplib.SMTP") as mock_smtp_cls:
+        mock_smtp = MagicMock()
+        mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
+        mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        resp = client.post(
+            "/obvestila/posli",
+            data={
+                "csrf_token": token,
+                "predloga_id": p.id,
+                "zadeva": "Kartica {{ leto }}",
+                "telo_html": "<p>Kartica {{ priimek }}</p>",
+                "leto": "2026",
+                "clan_id": "",
+                "bulk_filter": "vsi_aktivni",
+            },
+            follow_redirects=True,
+        )
+    assert resp.status_code == 200
+    # 2 emaila poslana (oba imata e-pošto)
+    assert mock_smtp_cls.return_value.__enter__.return_value.send_message.call_count == 2
+    # Vsak klic mora imeti priponko (PDF)
+    for call_args in mock_smtp_cls.return_value.__enter__.return_value.send_message.call_args_list:
+        msg = call_args[0][0]
+        # Sporočilo mora biti multipart/mixed (ima priponke)
+        assert msg.get_content_type() == "multipart/mixed"
+        # Ena od delov mora biti application/pdf
+        pdf_parts = [p for p in msg.walk() if p.get_content_type() == "application/pdf"]
+        assert len(pdf_parts) == 1
+
+
 def test_posli_brez_smtp(client, db):
     """POST /obvestila/posli brez SMTP konfiguracije → napaka/redirect z flash."""
     token = _login(client, db)

@@ -34,9 +34,16 @@
             {% for p in predloge %}
             <option value="{{ p.id }}"
               data-zadeva="{{ p.zadeva }}"
-              data-telo="{{ p.telo_html }}">{{ p.naziv }}</option>
+              data-telo="{{ p.telo_html }}"
+              data-prilozi-kartico="{{ 'true' if p.prilozi_kartico else 'false' }}">{{ p.naziv }}</option>
             {% endfor %}
           </select>
+        </div>
+        <div class="col-md-12" id="divKarticaOpozorilo" style="display:none;">
+          <div class="alert alert-info py-2 small mb-0">
+            <i class="bi bi-credit-card me-1"></i>
+            Ta predloga bo vsakemu prejemniku priložila <strong>osebno člansko izkaznico (PDF)</strong>.
+          </div>
         </div>
         <div class="col-md-3">
           <label class="form-label fw-semibold">Leto (za QR kodo in filter)</label>
@@ -133,6 +140,8 @@ document.getElementById('selPredloga').addEventListener('change', function() {
   const telo = opt.dataset.telo || '';
   document.getElementById('inpZadeva').value = zadeva;
   document.getElementById('inpTelo').value = telo;
+  const priloziKartico = opt.dataset.priloziKartico === 'true';
+  document.getElementById('divKarticaOpozorilo').style.display = priloziKartico ? '' : 'none';
 });
 
 // Preklapljanje med posameznik/bulk

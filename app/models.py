@@ -186,4 +186,5 @@ class EmailPredloga(Base):
     telo_html = Column(Text, nullable=False)
     je_privzeta = Column(Boolean, default=False, nullable=False)
     vkljuci_qr = Column(Boolean, default=False, nullable=False)
+    prilozi_kartico = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc), nullable=False)
