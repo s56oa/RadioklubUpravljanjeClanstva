@@ -35,6 +35,7 @@
           <th>Leto</th>
           <th>Datum plačila</th>
           <th>Znesek</th>
+          <th>Metoda</th>
           <th>Status</th>
         </tr>
       </thead>
@@ -46,6 +47,13 @@
           <td>{{ p.leto }}</td>
           <td>{{ p.datum_placila.strftime('%d. %m. %Y') }}</td>
           <td>{% if p.znesek %}{{ p.znesek }} €{% else %}<span class="text-muted">–</span>{% endif %}</td>
+          <td>
+            {% if p.metoda == "referenca" %}
+            <span class="badge bg-primary" title="Ujeto po SI00 referenci"><i class="bi bi-link-45deg me-1"></i>Referenca</span>
+            {% else %}
+            <span class="badge bg-secondary" title="Ujeto po priimku in imenu"><i class="bi bi-person me-1"></i>Ime</span>
+            {% endif %}
+          </td>
           <td>
             {% if p.posodobi %}
             <span class="badge bg-warning text-dark">Posodobi</span>

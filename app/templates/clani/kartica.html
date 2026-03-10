@@ -1,0 +1,210 @@
+{% extends "base.html" %}
+{% block title %}Kartica – {{ clan.priimek }} {{ clan.ime }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
+  <nav aria-label="breadcrumb">
+    <ol class="breadcrumb mb-0">
+      <li class="breadcrumb-item"><a href="/clani">Člani</a></li>
+      <li class="breadcrumb-item"><a href="/clani/{{ clan.id }}">{{ clan.priimek }} {{ clan.ime }}</a></li>
+      <li class="breadcrumb-item active">Kartica</li>
+    </ol>
+  </nav>
+  <div class="d-flex gap-2">
+    <a href="/clani/{{ clan.id }}/kartica.pdf?leto={{ leto }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-download me-1"></i>Prenesi PDF
+    </a>
+    <button class="btn btn-outline-primary btn-sm" onclick="window.print()">
+      <i class="bi bi-printer me-1"></i>Natisni
+    </button>
+    <a href="/clani/{{ clan.id }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Nazaj
+    </a>
+  </div>
+</div>
+
+<div class="alert alert-info d-print-none small">
+  <i class="bi bi-info-circle me-1"></i>
+  Tiskanje: priporočamo tisk z možnostjo <strong>Tiskaj ozadje</strong> v nastavitvah tiska. Velikost strani se nastavi samodejno (85.6 × 54 mm).
+</div>
+
+{# Kartica – vidna na zaslonu in pri tisku #}
+<div class="kartica-wrapper d-print-block">
+  <div class="kartica">
+
+    {# Header #}
+    <div class="kartica-header">
+      <span class="kartica-klub-ime">{{ (klub_ime or 'Radio klub') | upper }}</span>
+      {% if klub_oznaka %}<span class="kartica-klub-oznaka">{{ klub_oznaka }}</span>{% endif %}
+    </div>
+
+    {# Telo: ime levo, KZ box desno #}
+    <div class="kartica-body">
+      <div class="kartica-body-inner">
+        {# Ime in priimek – dve vrstici #}
+        <div class="kartica-name-col">
+          <div class="kartica-priimek">{{ clan.priimek }}</div>
+          <div class="kartica-ime">{{ clan.ime }}</div>
+        </div>
+        {# Klicni znak box desno #}
+        {% if clan.klicni_znak and clan.klicni_znak != '–' %}
+        <div class="kartica-kz-box">
+          <div class="kartica-kz-label">klicni znak</div>
+          <div class="kartica-kz">{{ clan.klicni_znak }}</div>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+
+    {# Ločilna črta + polja #}
+    <div class="kartica-sep"></div>
+    <div class="kartica-polja">
+      {% for polje in polja %}
+        {% if polje != 'klicni_znak' %}
+          {% if polje == 'tip_clanstva' and clan.tip_clanstva %}
+            <div class="kartica-polje"><div class="kartica-plabel">Tip:</div><div class="kartica-pval">{{ clan.tip_clanstva }}</div></div>
+          {% elif polje == 'operaterski_razred' and clan.operaterski_razred %}
+            <div class="kartica-polje"><div class="kartica-plabel">Razred:</div><div class="kartica-pval">{{ clan.operaterski_razred }}</div></div>
+          {% elif polje == 'es_stevilka' and clan.es_stevilka %}
+            <div class="kartica-polje"><div class="kartica-plabel">ES:</div><div class="kartica-pval">{{ clan.es_stevilka }}</div></div>
+          {% elif polje == 'veljavnost_rd' and clan.veljavnost_rd %}
+            <div class="kartica-polje"><div class="kartica-plabel">Veljavnost RD:</div><div class="kartica-pval">{{ clan.veljavnost_rd.strftime('%-d. %-m. %Y') }}</div></div>
+          {% endif %}
+        {% endif %}
+      {% endfor %}
+    </div>
+
+    {# Footer #}
+    <div class="kartica-footer">Članska izkaznica {{ leto }}</div>
+  </div>
+</div>
+
+<style>
+.kartica-wrapper {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 0;
+}
+
+.kartica {
+  width: 85.6mm;
+  height: 54mm;
+  border: 1px solid #bbb;
+  border-radius: 4px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0,0,0,.18);
+  display: flex;
+  flex-direction: column;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+}
+
+/* Header */
+.kartica-header {
+  background: #00467f;
+  color: #fff;
+  padding: 0 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 12.5mm;
+  border-bottom: 0.4mm solid #002d55;
+  flex-shrink: 0;
+}
+.kartica-klub-ime   { font-size: 7.5pt; font-weight: bold; letter-spacing: 0.02em; }
+.kartica-klub-oznaka{ font-size: 9pt;   font-weight: bold; }
+
+/* Telo */
+.kartica-body {
+  flex: 1;
+  padding: 1.5mm 5px 0;
+  overflow: hidden;
+}
+.kartica-body-inner {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  height: 100%;
+}
+
+/* Priimek + ime */
+.kartica-name-col  { display: flex; flex-direction: column; justify-content: center; flex: 1; padding-right: 3mm; }
+.kartica-priimek   { font-size: 11pt; font-weight: bold; color: #141414; line-height: 1.25; }
+.kartica-ime       { font-size: 9.5pt; color: #333; margin-top: 0.5mm; line-height: 1.2; }
+
+/* KZ box */
+.kartica-kz-box {
+  flex-shrink: 0;
+  width: 23mm;
+  background: #f0f6fc;
+  border: 0.5mm solid #00467f;
+  border-radius: 1mm;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1mm 2mm;
+  min-height: 15mm;
+}
+.kartica-kz-label { font-size: 6pt;   color: #888; margin-bottom: 1mm; }
+.kartica-kz       { font-size: 12pt;  font-weight: bold; color: #00467f; letter-spacing: 0.02em; }
+
+/* Ločilna črta */
+.kartica-sep {
+  height: 0;
+  border-top: 0.25mm solid #bfd4e8;
+  margin: 0 4px;
+  flex-shrink: 0;
+}
+
+/* Polja */
+.kartica-polja {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0 4px;
+  padding: 1.5mm 5px 0;
+  flex-shrink: 0;
+}
+.kartica-polje   { display: flex; flex-direction: column; margin-bottom: 0.5mm; }
+.kartica-plabel  { font-size: 6.5pt; color: #888; line-height: 1.3; }
+.kartica-pval    { font-size: 7.5pt; color: #141414; line-height: 1.3; }
+
+/* Footer */
+.kartica-footer {
+  flex-shrink: 0;
+  background: #f5f5f5;
+  border-top: 0.2mm solid #ccc;
+  padding: 1mm 5px;
+  font-size: 6.5pt;
+  color: #888;
+  min-height: 7mm;
+  display: flex;
+  align-items: center;
+}
+
+/* Tiskalni CSS */
+@media print {
+  @page {
+    size: 85.6mm 54mm;
+    margin: 0;
+  }
+
+  body * { visibility: hidden; }
+  .kartica, .kartica * { visibility: visible; }
+
+  .kartica-wrapper {
+    position: fixed;
+    top: 0; left: 0;
+    padding: 0;
+  }
+
+  .kartica {
+    width: 85.6mm;
+    height: 54mm;
+    border: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+}
+</style>
+{% endblock %}

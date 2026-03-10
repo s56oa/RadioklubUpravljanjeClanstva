@@ -108,6 +108,15 @@ nas prosimo čim prej obvestite, da posodobimo evidenco.</p>
 Uprava kluba</p>
 """
 
+_PREDLOGA_KARTICA = """\
+<p>Spoštovani {{ priimek }} {{ ime }},</p>
+
+<p>v priponki najdete vašo <strong>člansko izkaznico za leto {{ leto }}</strong>.</p>
+
+<p>Lep pozdrav,<br>
+{{ klub_ime }}</p>
+"""
+
 _PREDLOGA_UNIVERZALNA = """\
 <p>Spoštovani {{ priimek }} {{ ime }},</p>
 
@@ -150,6 +159,12 @@ _PRIVZETE_PREDLOGE = [
         "naziv": "Potrdi podatke člana",
         "zadeva": "Prosimo preverite vaše podatke v evidenci kluba",
         "telo_html": _PREDLOGA_PODATKI,
+        "vkljuci_qr": False,
+    },
+    {
+        "naziv": "Pošiljanje članske kartice",
+        "zadeva": "Članska izkaznica {{ leto }} – {{ klub_oznaka }}",
+        "telo_html": _PREDLOGA_KARTICA,
         "vkljuci_qr": False,
     },
     {

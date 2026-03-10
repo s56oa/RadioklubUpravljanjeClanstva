@@ -3,6 +3,8 @@
 Podprti načini SMTP: starttls (port 587), ssl (port 465), plain (port 25).
 """
 import smtplib
+from email import encoders
+from email.mime.base import MIMEBase
 from email.mime.image import MIMEImage
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -66,7 +68,8 @@ def _qr_png_bytes(clan: Clan, leto: int, db: Session) -> bytes:
     )
 
 
-def _clan_context(clan: Clan, leto: int, qr_img_tag: str = "") -> dict:
+def _clan_context(clan: Clan, leto: int, qr_img_tag: str = "",
+                  klub_ime: str = "", klub_oznaka: str = "") -> dict:
     """Vrne Jinja2 kontekst za predlogo (skupen za telo in zadevo)."""
     return {
         "ime": clan.ime or "",
@@ -85,6 +88,8 @@ def _clan_context(clan: Clan, leto: int, qr_img_tag: str = "") -> dict:
         "veljavnost_rd": clan.veljavnost_rd.strftime("%d. %m. %Y") if clan.veljavnost_rd else "",
         "es_stevilka": str(clan.es_stevilka) if clan.es_stevilka else "",
         "opombe": clan.opombe or "",
+        "klub_ime": klub_ime,
+        "klub_oznaka": klub_oznaka,
     }
 
 
@@ -112,11 +117,16 @@ def posli_email(
     smtp_nastavitve: dict,
     db: Session,
     vkljuci_qr: bool = False,
+    priponke: list[tuple[str, bytes, str]] | None = None,
 ) -> None:
-    """Pošlje personalizirani e-mail, opcijsko z embedded UPN QR kodo.
+    """Pošlje personalizirani e-mail, opcijsko z embedded UPN QR kodo in/ali priponkami.
 
+    priponke: seznam (ime_datoteke, vsebina_bytes, mime_tip) – npr. PDF kartica.
     Vrže smtplib.SMTPException ali ValueError ob napaki pri pošiljanju.
     """
+    klub_ime = get_nastavitev(db, "klub_ime", "")
+    klub_oznaka = get_nastavitev(db, "klub_oznaka", "")
+
     if vkljuci_qr:
         qr_bytes = _qr_png_bytes(clan, leto, db)
         # CID referenca – email odjemalci (Gmail, Outlook, Apple Mail) ne prikazujejo
@@ -129,24 +139,40 @@ def posli_email(
 
     # Render zadeve (iste spremenljivke kot telo, brez qr_koda)
     env = SandboxedEnvironment(autoescape=False)
-    zadeva = env.from_string(zadeva_predloga).render(**_clan_context(clan, leto))
+    ctx = _clan_context(clan, leto, klub_ime=klub_ime, klub_oznaka=klub_oznaka)
+    zadeva = env.from_string(zadeva_predloga).render(**ctx)
     # Zaščita pred email header injection: odstrani CR/LF iz zadeve in naslovov
     zadeva = zadeva.replace("\r", "").replace("\n", " ").strip()
     od = smtp_nastavitve["od"].replace("\r", "").replace("\n", "").strip()
     na = (clan.elektronska_posta or "").replace("\r", "").replace("\n", "").strip()
 
     # multipart/related omogoča CID inline attachmente (RFC 2387); brez QR zadostuje alternative
-    msg = MIMEMultipart("related" if vkljuci_qr else "alternative")
-    msg["Subject"] = zadeva
-    msg["From"] = od
-    msg["To"] = na
-    msg.attach(MIMEText(html_telo, "html", "utf-8"))
+    content_part = MIMEMultipart("related" if vkljuci_qr else "alternative")
+    content_part.attach(MIMEText(html_telo, "html", "utf-8"))
 
     if vkljuci_qr and qr_bytes:
         qr_img = MIMEImage(qr_bytes, "png")
         qr_img.add_header("Content-ID", "<qr_koda>")
         qr_img.add_header("Content-Disposition", "inline", filename="qr_koda.png")
-        msg.attach(qr_img)
+        content_part.attach(qr_img)
+
+    # Ko so priponke prisotne, zaovijemo vsebino v multipart/mixed (RFC 2183)
+    if priponke:
+        send_msg = MIMEMultipart("mixed")
+        send_msg.attach(content_part)
+        for ime_dat, vsebina, mime_tip in priponke:
+            maintype, subtype = mime_tip.split("/", 1)
+            att = MIMEBase(maintype, subtype)
+            att.set_payload(vsebina)
+            encoders.encode_base64(att)
+            att.add_header("Content-Disposition", "attachment", filename=ime_dat)
+            send_msg.attach(att)
+    else:
+        send_msg = content_part
+
+    send_msg["Subject"] = zadeva
+    send_msg["From"] = od
+    send_msg["To"] = na
 
     host = smtp_nastavitve["host"]
     port = smtp_nastavitve["port"]
@@ -158,12 +184,12 @@ def posli_email(
         with smtplib.SMTP_SSL(host, port) as server:
             if uporabnik:
                 server.login(uporabnik, geslo)
-            server.send_message(msg)
+            server.send_message(send_msg)
     elif nacin == "plain":
         with smtplib.SMTP(host, port) as server:
             if uporabnik:
                 server.login(uporabnik, geslo)
-            server.send_message(msg)
+            server.send_message(send_msg)
     else:  # starttls (privzeto)
         with smtplib.SMTP(host, port) as server:
             server.ehlo()
@@ -171,4 +197,4 @@ def posli_email(
             server.ehlo()
             if uporabnik:
                 server.login(uporabnik, geslo)
-            server.send_message(msg)
+            server.send_message(send_msg)

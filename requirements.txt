@@ -13,3 +13,4 @@ segno>=1.6.1
 pillow>=10.0.0
 alembic>=1.13
 httpx>=0.27
+fpdf2>=2.7

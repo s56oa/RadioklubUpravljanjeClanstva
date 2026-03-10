@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.22 | Datum: 2026-03-09*
+*Različica 1.23 | Datum: 2026-03-10*
 
 ---
 
@@ -26,6 +26,7 @@
 18. [UPN QR koda za plačilo](#18-upn-qr-koda-za-plačilo)
 19. [E-poštna obvestila](#19-e-poštna-obvestila)
 20. [Uvoz veljavnosti RD iz AKOS registra](#20-uvoz-veljavnosti-rd-iz-akos-registra)
+21. [Članska izkaznica (kartica)](#21-članska-izkaznica-kartica)
 
 ---
 
@@ -323,6 +324,46 @@ priimek, last name, surname
 Iskanje ni občutljivo na velikost črk in podpira delno ujemanje (iščemo celotne besede v imenu stolpca).
 
 Kliknite **Shrani nastavitve uvoza** za potrditev.
+
+---
+
+### Uvoz plačil iz Excel
+
+Na isti strani pod uvozom članov je sekcija **Uvoz plačil članarine iz Excel datoteke**.
+
+#### Identifikacija člana
+
+Aplikacija podpira dva načina za prepoznavo člana v vrstici:
+
+| Prioriteta | Metoda | Pogoj |
+|---|---|---|
+| 1. | **Po referenci** | Stolpec Referenca vsebuje vrednost v obliki `SI00 {ID}-{leto}` |
+| 2. | **Po imenu** | Ujemanje po priimku in imenu (fallback) |
+
+Referenca ima prednost – če je prisotna in veljavna, se ime ignorira. To je posebej koristno pri uvozu iz **bančnega izpiska**, kjer je referenca plačila zanesljivejši identifikator od imena.
+
+#### Format reference
+
+Stolpec Referenca mora vsebovati vrednost v obliki, ki jo generira UPN QR koda aplikacije:
+
+```
+SI00 1234-2026     ← s presledkom (UPN QR standard)
+SI0010-2026        ← brez presledka (nekateri bančni izpiski)
+```
+
+Aplikacija sprejme oba formata. Del `1234` je interna ID-številka člana (vidna v URL kartice člana, npr. `/clani/1234`). Del `2026` je leto, ki se primerja z letom iz datuma plačila.
+
+Stolpec Referenca je **opcijski** – datoteke brez tega stolpca delajo enako kot prej (identifikacija samo po imenu).
+
+#### Predogled
+
+Po nalaganju datoteke aplikacija prikaže predogled z dvema tabelama:
+- **Plačila za uvoz** – stolpec **Metoda** pokaže ali je bil član najden po referenci (modra značka) ali po imenu (siva značka)
+- **Preskočeni vnosi** – vrstice brez veljavnega datuma ali neprepoznanega člana
+
+#### Nastavitev stolpcev plačil
+
+V kartici **Nastavitve uvoza plačil** (admin) so nastavitve za vsa polja, vključno z novim poljem **Referenca (opcijsko)**. Privzeto ime stolpca je `referenca` (sprejme tudi `sklic` ali `ref`).
 
 ---
 
@@ -732,6 +773,7 @@ Kliknite **Pošlji obvestilo** v navigacijski vrstici ali pri posameznem članu/
    - **Posameznik** – vnesite ID člana (ali kliknete gumb iz kartice člana)
    - **Skupinsko pošiljanje** – pošlje e-pošto skupini prejemnikov glede na izbrani filter:
      - **Neplačniki za izbrano leto** – vsi aktivni člani, ki za izbrano leto še niso plačali
+     - **Plačniki za izbrano leto** – vsi aktivni člani, ki so za izbrano leto že plačali
      - **Člani s potečeno veljavnostjo RD** – aktivni člani, katerih RD je že preteklo
      - **Člani, katerim RD poteče v 180 dneh** – aktivni člani s skoro potečenim RD
      - **Vsi aktivni člani** – vsi člani z `aktiven=Da`
@@ -796,4 +838,61 @@ Preglejte predogled in kliknite **Potrdi posodobitev**. Za preklic kliknite **Pr
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.22 (2026-03-09)*
+---
+
+## 21. Članska izkaznica (kartica)
+
+Dostopno za urednike in admin: kartica člana → gumba **Kartica PDF** in **Pošlji kartico**.
+
+Funkcija omogoča generiranje personalizirane članske izkaznice v formatu kreditne kartice (85,6 × 54 mm) s podatki o članu in klicnim znakom.
+
+### Generiranje PDF kartice
+
+Na **kartici člana** kliknite gumb **Kartica PDF**:
+
+- Brskalnik prenese datoteko `kartica_{KZ}_{leto}.pdf` (npr. `kartica_S59ABC_2026.pdf`).
+- PDF vsebuje:
+  - **Glavo** z imenom kluba (levo) in klicnim znakom kluba (desno) na modri podlagi.
+  - **Ime in priimek** člana (poudarjeno).
+  - **Klicni znak** v okenčku (oranžni rob, svetlo modro ozadje).
+  - **Konfigurilana polja** (do 5): tip članstva, operaterski razred, ES-številka, veljavnost RD – v dvostolpčni razporeditvi.
+  - **Nogo** s tekstom "Članska izkaznica *leto*".
+- PDF je enostranični, A/4 paper je 85,6×54 mm (format kreditne kartice) – primerno za tisk in laminate.
+
+### Tisk v brskalniku (HTML različica)
+
+Navigirajte na `/clani/{id}/kartica` (gumb ni v UI – dostopajte neposredno prek URL-ja):
+
+- Stran prikaže kartico v HTML obliki s CSS za tisk (`@media print`).
+- Kliknite **Natisni** (ali Ctrl+P) za tisk.
+- Kliknite **Prenesi PDF** za prenos direktne PDF različice.
+- Pri tiskanju se skrijejo navigacija, gumbi in ostali UI elementi.
+
+### Pošiljanje kartice po e-pošti
+
+Na **kartici člana** kliknite gumb **Pošlji kartico** (viden samo, če ima član vpisano e-pošto):
+
+1. Aplikacija preveri SMTP nastavitve.
+2. Generira PDF kartico za tekoče leto.
+3. Pošlje e-mail po predlogi **"Pošiljanje članske kartice"** s PDF priponko (`kartica_{KZ}_{leto}.pdf`).
+4. Prikaže se sporočilo o uspehu ali opozorilo ob napaki.
+
+> **Predpogoj:** V **Nastavitve → E-pošta (SMTP)** mora biti nastavljeni SMTP strežnik.
+
+### Nastavitve kartice
+
+Admin: **Nastavitve → Nastavitve članske kartice** – z checkboxi izberite, katera polja se prikažejo na kartici:
+
+| Polje | Privzeto |
+|-------|---------|
+| Klicni znak | ✅ |
+| Tip članstva | ✅ |
+| Operaterski razred | ✅ |
+| ES-številka | ✅ |
+| Veljavnost RD | ✅ |
+
+Odkljukana polja se ne prikažejo na kartici (niti v PDF niti pri tisku).
+
+---
+
+*Radio klub Člani – Upravljanje Članstva – različica 1.23 (2026-03-10)*

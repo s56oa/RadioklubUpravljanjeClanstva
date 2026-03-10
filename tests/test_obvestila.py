@@ -362,6 +362,42 @@ def test_posli_bulk_vsi(client, db):
     assert mock_smtp_cls.return_value.__enter__.return_value.send_message.call_count == 2
 
 
+def test_posli_bulk_placniki(client, db):
+    """bulk_filter=placniki → email poslan samo plačniku, neplačnik preskočen."""
+    token = _login(client, db)
+    # Plačnik
+    c_placnik = _nov_clan(db, ime="Plačnik", priimek="Clan", email="placnik@test.si")
+    db.add(Clanarina(clan_id=c_placnik.id, leto=2026, datum_placila=date.today(), znesek="25.00"))
+    # Neplačnik (brez Clanarina za 2026)
+    c_neplacnik = _nov_clan(db, ime="Neplačnik", priimek="Clan", email="neplacnik@test.si")
+    db.commit()
+
+    p = _nova_predloga(db)
+    _nastavi_smtp(db)
+
+    with patch("app.email.smtplib.SMTP") as mock_smtp_cls:
+        mock_smtp = MagicMock()
+        mock_smtp_cls.return_value.__enter__ = MagicMock(return_value=mock_smtp)
+        mock_smtp_cls.return_value.__exit__ = MagicMock(return_value=False)
+
+        resp = client.post(
+            "/obvestila/posli",
+            data={
+                "csrf_token": token,
+                "predloga_id": p.id,
+                "zadeva": "Zahvala",
+                "telo_html": "<p>Hvala {{ priimek }}</p>",
+                "leto": "2026",
+                "clan_id": "",
+                "bulk_filter": "placniki",
+            },
+            follow_redirects=True,
+        )
+    assert resp.status_code == 200
+    # Samo 1 poslan (plačnik), neplačnik preskočen
+    assert mock_smtp_cls.return_value.__enter__.return_value.send_message.call_count == 1
+
+
 def test_posli_brez_smtp(client, db):
     """POST /obvestila/posli brez SMTP konfiguracije → napaka/redirect z flash."""
     token = _login(client, db)

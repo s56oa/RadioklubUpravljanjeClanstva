@@ -19,6 +19,18 @@
       <i class="bi bi-envelope me-1"></i>Pošlji obvestilo
     </a>
     {% endif %}
+    <a href="/clani/{{ clan.id }}/kartica.pdf?leto={{ leto_zdaj }}" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-credit-card me-1"></i>Kartica PDF
+    </a>
+    {% if clan.elektronska_posta and '@' in clan.elektronska_posta %}
+    <form method="post" action="/clani/{{ clan.id }}/posli-kartico" class="d-inline">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
+      <input type="hidden" name="leto" value="{{ leto_zdaj }}">
+      <button type="submit" class="btn btn-outline-info btn-sm">
+        <i class="bi bi-envelope-arrow-up me-1"></i>Pošlji kartico
+      </button>
+    </form>
+    {% endif %}
     {% endif %}
     {% if is_admin %}
     <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIzbrisi">
@@ -27,6 +39,19 @@
     {% endif %}
   </div>
 </div>
+
+{% if flash_success %}
+<div class="alert alert-success alert-dismissible fade show">
+  <i class="bi bi-check-circle me-2"></i>{{ flash_success }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
+{% if flash_warning %}
+<div class="alert alert-warning alert-dismissible fade show">
+  <i class="bi bi-exclamation-triangle me-2"></i>{{ flash_warning }}
+  <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+</div>
+{% endif %}
 
 <div class="row g-3">
   <!-- Osebni podatki -->

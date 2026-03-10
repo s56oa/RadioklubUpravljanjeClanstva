@@ -10,6 +10,16 @@ from ..config import get_seznam, get_tipi_clanstva, get_operaterski_razredi
 from ..models import TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO, VLOGE_CLANOV_PRIVZETO
 from ..csrf import get_csrf_token, csrf_protect
 
+# Vsa polja članske kartice (v zaporedju prikaza)
+KARTICA_POLJA_VSA = [
+    ("klicni_znak", "Klicni znak"),
+    ("tip_clanstva", "Tip članstva"),
+    ("operaterski_razred", "Operaterski razred"),
+    ("es_stevilka", "ES-številka"),
+    ("veljavnost_rd", "Veljavnost RD"),
+]
+KARTICA_POLJA_PRIVZETO = "klicni_znak,tip_clanstva,operaterski_razred,es_stevilka,veljavnost_rd"
+
 router = APIRouter(prefix="/nastavitve")
 templates = Jinja2Templates(directory="app/templates")
 templates.env.globals["csrf_token"] = get_csrf_token
@@ -76,6 +86,9 @@ async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> R
         if k not in nas or not nas[k]:
             nas[k] = v
 
+    kartica_polja_vrednost = nas.get("kartica_polja", KARTICA_POLJA_PRIVZETO) or KARTICA_POLJA_PRIVZETO
+    kartica_polja_set = set(kartica_polja_vrednost.split(","))
+
     return templates.TemplateResponse(
         request,
         "nastavitve/index.html",
@@ -87,6 +100,8 @@ async def nastavitve_stran(request: Request, db: Session = Depends(get_db)) -> R
             "kljuci_seznam": KLJUCI_SEZNAM,
             "kljuci_upn": KLJUCI_UPN,
             "kljuci_smtp": KLJUCI_SMTP,
+            "kartica_polja_vsa": KARTICA_POLJA_VSA,
+            "kartica_polja_set": kartica_polja_set,
             "is_admin": True,
             "shranjen": request.query_params.get("shranjen") == "1",
         },
@@ -111,5 +126,15 @@ async def nastavitve_shrani(request: Request, db: Session = Depends(get_db), _cs
             n.vrednost = vrednost
         else:
             db.add(Nastavitev(kljuc=kljuc, vrednost=vrednost))
+
+    # kartica_polja – zberi čekirana polja v vejicami ločen niz (ohranj vrstni red)
+    izbrana = [k for k, _ in KARTICA_POLJA_VSA if form.get(f"kartica_polje_{k}")]
+    kartica_vrednost = ",".join(izbrana)
+    n = db.query(Nastavitev).filter(Nastavitev.kljuc == "kartica_polja").first()
+    if n:
+        n.vrednost = kartica_vrednost
+    else:
+        db.add(Nastavitev(kljuc="kartica_polja", vrednost=kartica_vrednost))
+
     db.commit()
     return RedirectResponse(url="/nastavitve?shranjen=1", status_code=302)

@@ -301,7 +301,19 @@ async def posli_post(
     else:
         # Bulk: filter določa skupino prejemnikov
         danes = date.today()
-        if bulk_filter == "rd_potekla":
+        if bulk_filter == "placniki":
+            # Aktivni člani, ki so plačali za izbrano leto
+            clan_ids_placali = db.query(Clanarina.clan_id).filter(
+                Clanarina.leto == leto,
+                Clanarina.datum_placila != None,
+            )
+            clani = (
+                db.query(Clan)
+                .filter(Clan.aktiven == True, Clan.id.in_(clan_ids_placali))
+                .order_by(Clan.priimek, Clan.ime)
+                .all()
+            )
+        elif bulk_filter == "rd_potekla":
             # Aktivni člani s potečeno veljavnostjo RD
             clani = (
                 db.query(Clan)

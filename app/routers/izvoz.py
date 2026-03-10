@@ -156,17 +156,19 @@ def _get_uvoz_mapping(db: Session) -> dict[str, list[str]]:
 # ---------------------------------------------------------------------------
 
 UVOZ_PLACILA_STOLPCI_PRIVZETO: dict[str, str] = {
-    "priimek": "priimek",
-    "ime":     "ime",
-    "datum":   "datum plačila, datum",
-    "znesek":  "znesek",
+    "priimek":   "priimek",
+    "ime":       "ime",
+    "datum":     "datum plačila, datum",
+    "znesek":    "znesek",
+    "referenca": "referenca, sklic, ref",
 }
 
 KLJUCI_UVOZ_PLACILA = [
-    ("uvoz_placila_priimek", "Priimek"),
-    ("uvoz_placila_ime",     "Ime"),
-    ("uvoz_placila_datum",   "Datum plačila"),
-    ("uvoz_placila_znesek",  "Znesek"),
+    ("uvoz_placila_priimek",   "Priimek"),
+    ("uvoz_placila_ime",       "Ime"),
+    ("uvoz_placila_datum",     "Datum plačila"),
+    ("uvoz_placila_znesek",    "Znesek"),
+    ("uvoz_placila_referenca", "Referenca (opcijsko)"),
 ]
 
 
@@ -194,6 +196,28 @@ def _parse_datum_celice(v) -> date | None:
     return None
 
 
+_RE_REFERENCA = re.compile(r'si00\s*(\d+)-\d{4}', re.IGNORECASE)
+
+
+def _parse_referenca(vrednost) -> int | None:
+    """Razčleni SI00 referenco UPN QR in vrne ID ali None.
+
+    Podprt format: ``SI00 1234-2026`` ali ``SI00 0056-2026``.
+    """
+    if not vrednost:
+        return None
+    m = _RE_REFERENCA.search(str(vrednost).strip())
+    return int(m.group(1)) if m else None
+
+
+def _najdi_clana_po_referenci(ref_id: int, db: Session) -> Clan | None:
+    """Poišče člana po ID-ju iz reference; fallback na ES številko."""
+    clan = db.query(Clan).filter(Clan.id == ref_id).first()
+    if clan:
+        return clan
+    return db.query(Clan).filter(Clan.es_stevilka == str(ref_id)).first()
+
+
 def _parse_excel_placila_pregled(
     vsebina: bytes, db: Session, mapping: dict[str, list[str]]
 ) -> tuple[list[dict], list[dict]]:
@@ -203,13 +227,16 @@ def _parse_excel_placila_pregled(
     preskoceni: list[dict] = []
 
     for row in ws.iter_rows(min_row=2):
-        priimek = _col(row, headers, *mapping["priimek"])
-        ime     = _col(row, headers, *mapping["ime"])
-        if not priimek and not ime:
+        ref_raw   = _col(row, headers, *mapping.get("referenca", [])) if mapping.get("referenca") else ""
+        ref_id    = _parse_referenca(ref_raw)
+        priimek   = _col(row, headers, *mapping["priimek"])
+        ime       = _col(row, headers, *mapping["ime"])
+
+        if not ref_id and not priimek and not ime:
             continue
 
-        priimek_n = priimek.strip().title()
-        ime_n     = ime.strip().title()
+        priimek_n = (priimek or "").strip().title()
+        ime_n     = (ime or "").strip().title()
 
         # Datum iz stolpca
         datum_val: date | None = None
@@ -225,9 +252,18 @@ def _parse_excel_placila_pregled(
             })
             continue
 
-        clan = db.query(Clan).filter(
-            Clan.priimek == priimek_n, Clan.ime == ime_n
-        ).first()
+        # Identifikacija člana: referenca ima prednost pred imenom
+        clan: Clan | None = None
+        metoda = "ime"
+        if ref_id is not None:
+            clan = _najdi_clana_po_referenci(ref_id, db)
+            if clan:
+                metoda = "referenca"
+        if not clan and priimek_n and ime_n:
+            clan = db.query(Clan).filter(
+                Clan.priimek == priimek_n, Clan.ime == ime_n
+            ).first()
+
         if not clan:
             preskoceni.append({
                 "priimek": priimek_n, "ime": ime_n,
@@ -242,12 +278,13 @@ def _parse_excel_placila_pregled(
         ).first()
 
         za_uvoz.append({
-            "priimek":      priimek_n,
-            "ime":          ime_n,
-            "leto":         leto,
+            "priimek":       clan.priimek,
+            "ime":           clan.ime,
+            "leto":          leto,
             "datum_placila": datum_val,
-            "znesek":       znesek,
-            "posodobi":     obstaja is not None,
+            "znesek":        znesek,
+            "posodobi":      obstaja is not None,
+            "metoda":        metoda,
         })
 
     return za_uvoz, preskoceni
@@ -262,13 +299,16 @@ def _uvozi_placila_workbook(
     preskoceni = 0
 
     for row in ws.iter_rows(min_row=2):
+        ref_raw = _col(row, headers, *mapping.get("referenca", [])) if mapping.get("referenca") else ""
+        ref_id  = _parse_referenca(ref_raw)
         priimek = _col(row, headers, *mapping["priimek"])
         ime     = _col(row, headers, *mapping["ime"])
-        if not priimek and not ime:
+
+        if not ref_id and not priimek and not ime:
             continue
 
-        priimek_n = priimek.strip().title()
-        ime_n     = ime.strip().title()
+        priimek_n = (priimek or "").strip().title()
+        ime_n     = (ime or "").strip().title()
 
         datum_val: date | None = None
         for i, h in enumerate(headers):
@@ -280,9 +320,15 @@ def _uvozi_placila_workbook(
             preskoceni += 1
             continue
 
-        clan = db.query(Clan).filter(
-            Clan.priimek == priimek_n, Clan.ime == ime_n
-        ).first()
+        # Identifikacija: referenca ima prednost
+        clan: Clan | None = None
+        if ref_id is not None:
+            clan = _najdi_clana_po_referenci(ref_id, db)
+        if not clan and priimek_n and ime_n:
+            clan = db.query(Clan).filter(
+                Clan.priimek == priimek_n, Clan.ime == ime_n
+            ).first()
+
         if not clan:
             preskoceni += 1
             continue

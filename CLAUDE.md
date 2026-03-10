@@ -1,7 +1,7 @@
 # CLAUDE.md – Radio klub Upravljanje Članstva
 
 Spletna aplikacija za upravljanje članstva radijskega kluba.
-Trenutna različica: **v1.22** (produkcijsko stabilna)
+Trenutna različica: **v1.23** (produkcijsko stabilna)
 
 ## Lokalni zagon
 
@@ -14,7 +14,7 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 python3 -m pytest tests/ -v
-# Pričakovano: 128 testov, 0 napak
+# Pričakovano: 147 testov, 0 napak
 ```
 
 ## Arhitektura
