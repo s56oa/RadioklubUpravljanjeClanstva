@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.23 | Datum: 2026-03-09*
+*Različica 1.24 | Datum: 2026-03-10*
 
 ---
 
@@ -925,7 +925,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (148) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (154) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1138,6 +1138,9 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | `ContentSizeLimitMiddleware` utrjen: specifične upload poti + HTTP 411 za manjkajoč header | v1.21 |
 | `Content-Disposition` filename sanitizacija za PDF kartice (`re.sub` alfanumeričen filter) | v1.23 |
 | Validacija leta (2000–2100) pri pošiljanju kartice; SMTP pre-check pred generacijo PDF | v1.23 |
+| DOM XSS popravek v AJAX autocomplete (`innerHTML` → DOM API za user data) | v1.24 |
+| Server-side `nacin` validacija v `POST /obvestila/posli`; H5 predloga `None` check | v1.24 |
+| `/clani/iskanje` JSON endpoint zahteva editor+ vlogo (JSONResponse 401/403) | v1.24 |
 
 ### Varnostno vzdrževanje
 
@@ -1170,11 +1173,12 @@ pytest tests/ -v
 | `test_routes.py` | login, /health, /clani (multi-select filtri, operaterski razred), /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka, backup-excel dostop, IDOR clanarina+aktivnosti, validacija vnosa, filtrirani Excel izvoz, neplacniki logika | 36 |
 | `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), uredi (editor, brez pravic, IDOR, neveljavni datum), izbriši (admin/urednik/brez seje, IDOR), kaskadno brisanje, dropdown, validacija datumov | 22 |
 | `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
-| `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk (neplačniki/placniki/rd_potekla/vsi_aktivni/vsi), brez SMTP (mock smtplib) | 15 |
+| `test_clani.py` | iskanje po imenu, iskanje po klicnem znaku, brez seje (401/302) | 3 |
+| `test_obvestila.py` | seznam predlog, nova/uredi/izbrisi predloga, pošlji posamezniku, bulk (neplačniki/placniki/rd_potekla/vsi_aktivni/vsi), brez SMTP (mock smtplib), posameznik brez clan_id, neobstoječa predloga | 18 |
 | `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ, star datum (>10 let), zaščita pred znižanjem | 12 |
 | `test_uvoz_placila.py` | _parse_referenca (veljaven/vodilne ničle/lowercase/brez vrednosti/napačen format/brez presledka), predogled po referenci/imenu/prioriteta/ES-številka/neobstoječ član/brez datuma, uvoz workbook (referenca, backward compat) | 14 |
 | `test_kartica.py` | PDF download (application/pdf, %PDF header), HTML prikaz (ime člana), brez pravic (bralec → redirect), pošlji brez emaila (flash opozorilo), pošlji mock SMTP (audit log kartica_poslana) | 5 |
-| **Skupaj** | | **148** |
+| **Skupaj** | | **154** |
 
 ### Testna infrastruktura
 
@@ -1187,4 +1191,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.23*
+*Radio klub Člani – tehnična dokumentacija, različica 1.24*

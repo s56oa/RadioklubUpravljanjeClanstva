@@ -4,9 +4,9 @@ from datetime import date, timedelta
 from typing import List
 
 from fastapi import APIRouter, Request, Form, Depends, Query
-from fastapi.responses import RedirectResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, Response, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, func
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -274,6 +274,39 @@ async def nov_shrani(
     log_akcija(db, user.get("uporabnisko_ime") if user else None, "clan_dodan",
                f"{clan.priimek} {clan.ime}", ip=ip)
     return RedirectResponse(url=f"/clani/{clan.id}", status_code=302)
+
+
+@router.get("/iskanje")
+async def iskanje_clanov(
+    request: Request,
+    q: str = Query(""),
+    db: Session = Depends(get_db),
+) -> Response:
+    user, redirect = require_login(request)
+    if redirect:
+        return JSONResponse({"error": "unauthorized"}, status_code=401)
+    if not is_editor(user):
+        return JSONResponse({"error": "forbidden"}, status_code=403)
+    if len(q.strip()) < 2:
+        return JSONResponse([])
+    q_l = f"%{q.strip().lower()}%"
+    clani = (
+        db.query(Clan)
+        .filter(or_(
+            func.lower(Clan.priimek + " " + Clan.ime).like(q_l),
+            func.lower(Clan.ime + " " + Clan.priimek).like(q_l),
+            func.lower(Clan.klicni_znak).like(q_l),
+        ))
+        .order_by(Clan.aktiven.desc(), Clan.priimek, Clan.ime)
+        .limit(10)
+        .all()
+    )
+    return JSONResponse([{
+        "id": c.id, "priimek": c.priimek, "ime": c.ime,
+        "klicni_znak": c.klicni_znak or "",
+        "elektronska_posta": c.elektronska_posta or "",
+        "aktiven": c.aktiven,
+    } for c in clani])
 
 
 @router.get("/{clan_id}", response_class=HTMLResponse)

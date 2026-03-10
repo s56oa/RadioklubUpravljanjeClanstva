@@ -35,7 +35,8 @@
             <option value="{{ p.id }}"
               data-zadeva="{{ p.zadeva }}"
               data-telo="{{ p.telo_html }}"
-              data-prilozi-kartico="{{ 'true' if p.prilozi_kartico else 'false' }}">{{ p.naziv }}</option>
+              data-prilozi-kartico="{{ 'true' if p.prilozi_kartico else 'false' }}"
+              {% if predloga_id_param == p.id %}selected{% endif %}>{{ p.naziv }}</option>
             {% endfor %}
           </select>
         </div>
@@ -69,30 +70,31 @@
         <div class="card-body">
           <p class="fw-semibold mb-2">Prejemnik</p>
           <div class="form-check mb-2">
-            <input class="form-check-input" type="radio" name="_nacin" id="rPosam" value="posameznik"
+            <input class="form-check-input" type="radio" name="nacin" id="rPosam" value="posameznik"
               {% if izbran_clan %}checked{% endif %}>
             <label class="form-check-label" for="rPosam">Posameznik</label>
           </div>
           <div id="divPosam" class="mb-3 {% if not izbran_clan %}d-none{% endif %}">
-            <label class="form-label small mb-1">ID ali ime člana</label>
-            <input type="text" id="inpClanSearch" class="form-control form-control-sm"
-              placeholder="Vnesite ID ali del imena..."
-              value="{% if izbran_clan %}{{ izbran_clan.priimek }} {{ izbran_clan.ime }}{% endif %}">
+            <label class="form-label small mb-1">Ime, priimek ali klicni znak člana</label>
+            <div class="position-relative" id="clanSearchWrap">
+              <input type="text" id="inpClanSearch" class="form-control form-control-sm"
+                placeholder="Začnite tipkati (min. 2 znaka)..." autocomplete="off"
+                value="{% if izbran_clan %}{{ izbran_clan.priimek }} {{ izbran_clan.ime }}{% if izbran_clan.klicni_znak %} ({{ izbran_clan.klicni_znak }}){% endif %}{% endif %}">
+              <div id="clanDropdown" class="dropdown-menu w-100" style="max-height:220px;overflow-y:auto;"></div>
+            </div>
             <input type="hidden" name="clan_id" id="inpClanId"
               value="{% if izbran_clan %}{{ izbran_clan.id }}{% endif %}">
-            {% if izbran_clan %}
-            <div class="form-text">
-              <i class="bi bi-person me-1"></i>{{ izbran_clan.priimek }} {{ izbran_clan.ime }}
+            <div id="clanInfo" class="form-text {% if not izbran_clan %}d-none{% endif %}">
+              {% if izbran_clan %}
+              <i class="bi bi-person-check me-1 text-success"></i>{{ izbran_clan.priimek }} {{ izbran_clan.ime }}
               {% if izbran_clan.elektronska_posta %}
               – <a href="mailto:{{ izbran_clan.elektronska_posta }}">{{ izbran_clan.elektronska_posta }}</a>
-              {% else %}
-              – <span class="text-danger">Ni e-pošte!</span>
+              {% else %}– <span class="text-danger">Ni e-pošte!</span>{% endif %}
               {% endif %}
             </div>
-            {% endif %}
           </div>
           <div class="form-check">
-            <input class="form-check-input" type="radio" name="_nacin" id="rBulk" value="bulk"
+            <input class="form-check-input" type="radio" name="nacin" id="rBulk" value="bulk"
               {% if not izbran_clan %}checked{% endif %}>
             <label class="form-check-label" for="rBulk">
               Skupinsko pošiljanje
@@ -119,7 +121,7 @@
       </div>
 
       <div class="d-flex gap-2">
-        <button type="submit" class="btn btn-primary">
+        <button type="submit" class="btn btn-primary" id="btnPosli">
           <i class="bi bi-send me-1"></i>Pošlji
         </button>
         <a href="/obvestila" class="btn btn-outline-secondary">
@@ -133,49 +135,153 @@
 
 {% block scripts %}
 <script>
-// Zamenjava vsebine forme ob izbiri predloge
-document.getElementById('selPredloga').addEventListener('change', function() {
+// ── Izbira predloge ──────────────────────────────────────────────────────────
+const selPredloga = document.getElementById('selPredloga');
+selPredloga.addEventListener('change', function() {
   const opt = this.options[this.selectedIndex];
-  const zadeva = opt.dataset.zadeva || '';
-  const telo = opt.dataset.telo || '';
-  document.getElementById('inpZadeva').value = zadeva;
-  document.getElementById('inpTelo').value = telo;
-  const priloziKartico = opt.dataset.priloziKartico === 'true';
-  document.getElementById('divKarticaOpozorilo').style.display = priloziKartico ? '' : 'none';
+  document.getElementById('inpZadeva').value = opt.dataset.zadeva || '';
+  document.getElementById('inpTelo').value = opt.dataset.telo || '';
+  document.getElementById('divKarticaOpozorilo').style.display =
+    opt.dataset.priloziKartico === 'true' ? '' : 'none';
 });
+// H1: sproži ob nalaganju če je predloga prednastavljena
+if (selPredloga.value) selPredloga.dispatchEvent(new Event('change'));
 
-// Preklapljanje med posameznik/bulk
-document.querySelectorAll('input[name="_nacin"]').forEach(function(radio) {
-  radio.addEventListener('change', function() {
+// ── Submit button enable/disable (C2) ────────────────────────────────────────
+function updateBtn() {
+  const nacin = document.querySelector('input[name="nacin"]:checked');
+  document.getElementById('btnPosli').disabled =
+    nacin && nacin.value === 'posameznik' && !document.getElementById('inpClanId').value;
+}
+updateBtn();
+
+// ── Radio preklop Posameznik / Bulk (H4) ─────────────────────────────────────
+let shranjeniClanId = document.getElementById('inpClanId').value;
+document.querySelectorAll('input[name="nacin"]').forEach(function(r) {
+  r.addEventListener('change', function() {
     const posam = document.getElementById('divPosam');
-    const bulk = document.getElementById('divBulk');
+    const bulk  = document.getElementById('divBulk');
     if (this.value === 'posameznik') {
       posam.classList.remove('d-none');
       bulk.classList.add('d-none');
+      document.getElementById('inpClanId').value = shranjeniClanId;
     } else {
+      shranjeniClanId = document.getElementById('inpClanId').value;
       posam.classList.add('d-none');
       bulk.classList.remove('d-none');
       document.getElementById('inpClanId').value = '';
     }
+    updateBtn();
   });
 });
 
-// Enostavno iskanje člana po ID
+// ── AJAX autocomplete (C3) ───────────────────────────────────────────────────
+let ajaxTimer;
 document.getElementById('inpClanSearch').addEventListener('input', function() {
-  const val = this.value.trim();
-  if (/^\d+$/.test(val)) {
-    document.getElementById('inpClanId').value = val;
+  clearTimeout(ajaxTimer);
+  // M5: ob vsaki spremembi počisti obstoječi izbor
+  document.getElementById('inpClanId').value = '';
+  shranjeniClanId = '';
+  document.getElementById('clanInfo').classList.add('d-none');
+  updateBtn();
+  const q = this.value.trim();
+  if (q.length < 2) { zapriDD(); return; }
+  ajaxTimer = setTimeout(function() {
+    fetch('/clani/iskanje?q=' + encodeURIComponent(q))
+      .then(r => r.json()).then(prikaziDD);
+  }, 300);
+});
+
+function _txt(parent, text) {
+  parent.appendChild(document.createTextNode(text));
+}
+function _el(tag, cls, textContent) {
+  const el = document.createElement(tag);
+  if (cls) el.className = cls;
+  if (textContent !== undefined) el.textContent = textContent;
+  return el;
+}
+
+function prikaziDD(clani) {
+  const dd = document.getElementById('clanDropdown');
+  dd.innerHTML = '';
+  if (!clani.length) {
+    const s = _el('span', 'dropdown-item-text text-muted small py-1', 'Ni zadetkov');
+    dd.appendChild(s);
+  } else {
+    clani.forEach(c => {
+      const a = _el('a', 'dropdown-item py-1 small' + (c.aktiven ? '' : ' text-muted'));
+      a.href = '#';
+      _txt(a, c.priimek + ' ' + c.ime);
+      if (c.klicni_znak) {
+        _txt(a, ' ');
+        a.appendChild(_el('span', 'text-secondary', '(' + c.klicni_znak + ')'));
+      }
+      _txt(a, ' ');
+      if (c.elektronska_posta) {
+        a.appendChild(_el('small', 'text-muted', c.elektronska_posta));
+      } else {
+        a.appendChild(_el('small', 'text-danger', 'brez e-pošte'));
+      }
+      if (!c.aktiven) {
+        _txt(a, ' ');
+        a.appendChild(_el('span', 'badge bg-secondary ms-1', 'neaktiven'));
+      }
+      a.addEventListener('click', e => { e.preventDefault(); izberClan(c); });
+      dd.appendChild(a);
+    });
+  }
+  dd.classList.add('show');
+}
+
+function izberClan(c) {
+  const kz = c.klicni_znak ? ` (${c.klicni_znak})` : '';
+  document.getElementById('inpClanSearch').value = c.priimek + ' ' + c.ime + kz;
+  document.getElementById('inpClanId').value = c.id;
+  shranjeniClanId = String(c.id);
+  const info = document.getElementById('clanInfo');
+  info.innerHTML = '';
+  const icon = _el('i', 'bi bi-person-check me-1 text-success');
+  info.appendChild(icon);
+  _txt(info, c.priimek + ' ' + c.ime + ' – ');
+  if (c.elektronska_posta) {
+    const a = _el('a');
+    a.href = 'mailto:' + c.elektronska_posta;
+    a.textContent = c.elektronska_posta;
+    info.appendChild(a);
+  } else {
+    info.appendChild(_el('span', 'text-danger', 'Ni e-pošte!'));
+  }
+  info.classList.remove('d-none');
+  zapriDD();
+  updateBtn();
+}
+
+function zapriDD() {
+  document.getElementById('clanDropdown').classList.remove('show');
+}
+document.addEventListener('click', function(e) {
+  if (!document.getElementById('clanSearchWrap').contains(e.target)) zapriDD();
+});
+
+// ── Potrditev pred bulk (H3) ──────────────────────────────────────────────────
+document.getElementById('posliForma').addEventListener('submit', function(e) {
+  const nacin = document.querySelector('input[name="nacin"]:checked');
+  if (!nacin || nacin.value !== 'posameznik') {
+    const sel = document.getElementById('selBulkFilter');
+    if (!confirm('Res želite poslati e-mail skupini:\n"' + sel.options[sel.selectedIndex].text + '"?'))
+      e.preventDefault();
   }
 });
 
-// Opis bulk filtra
+// ── Opis bulk filtra ──────────────────────────────────────────────────────────
 const bulkOpisi = {
-  'neplacniki': 'Email bo poslan vsem aktivnim članom, ki še niso plačali za izbrano leto.',
-  'placniki': 'Email bo poslan vsem aktivnim članom, ki so že plačali za izbrano leto.',
-  'rd_potekla': 'Email bo poslan vsem aktivnim članom, katerih veljavnost radijskega dovoljenja je že potekla.',
-  'rd_kmalu': 'Email bo poslan vsem aktivnim članom, katerim veljavnost radijskega dovoljenja poteče v naslednjih 180 dneh.',
-  'vsi_aktivni': 'Email bo poslan vsem aktivnim članom.',
-  'vsi': 'Email bo poslan vsem članom (aktivnim in neaktivnim).'
+  neplacniki:  'Email bo poslan vsem aktivnim članom, ki še niso plačali za izbrano leto.',
+  placniki:    'Email bo poslan vsem aktivnim članom, ki so že plačali za izbrano leto.',
+  rd_potekla:  'Email bo poslan vsem aktivnim članom, katerih veljavnost RD je že potekla.',
+  rd_kmalu:    'Email bo poslan vsem aktivnim članom, katerim RD poteče v naslednjih 180 dneh.',
+  vsi_aktivni: 'Email bo poslan vsem aktivnim članom.',
+  vsi:         'Email bo poslan vsem članom (aktivnim in neaktivnim).'
 };
 document.getElementById('selBulkFilter').addEventListener('change', function() {
   document.getElementById('txtBulkOpis').textContent = bulkOpisi[this.value] || '';

@@ -471,3 +471,46 @@ def test_posli_brez_smtp(client, db):
     assert resp.status_code == 200
     # Flash napaka mora biti prikazana ali redirect na posli
     assert "SMTP" in resp.text or "nastavl" in resp.text.lower()
+
+
+def test_posli_posameznik_brez_clan_id(client, db):
+    """nacin=posameznik + clan_id="" → redirect z napako, ne bulk send."""
+    token = _login(client, db)
+    p = _nova_predloga(db)
+    _nastavi_smtp(db)
+    resp = client.post(
+        "/obvestila/posli",
+        data={
+            "csrf_token": token,
+            "predloga_id": p.id,
+            "zadeva": "Z",
+            "telo_html": "<p>T</p>",
+            "leto": "2026",
+            "nacin": "posameznik",
+            "clan_id": "",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert "člana" in resp.text.lower() or "izberite" in resp.text.lower()
+
+
+def test_posli_neobstojeca_predloga(client, db):
+    """predloga_id ki ne obstaja → redirect z napako."""
+    token = _login(client, db)
+    _nastavi_smtp(db)
+    resp = client.post(
+        "/obvestila/posli",
+        data={
+            "csrf_token": token,
+            "predloga_id": 9999,
+            "zadeva": "Z",
+            "telo_html": "<p>T</p>",
+            "leto": "2026",
+            "nacin": "bulk",
+            "clan_id": "",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert "predloga" in resp.text.lower()

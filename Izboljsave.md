@@ -77,6 +77,7 @@
 | Filtri obdobja na dashboard grafih | ✅ | v1.22 | Gumbi Zadnjih 5 let / Zadnjih 10 let / Vse v glavi grafov Plačila po letu in Delovne ure po letu; privzeto: Zadnjih 5 let; client-side JS (`filtrirajLeta()` obreže `leta[]`, `placilaData[]`, `ureData[]`); oba grafa sta sinhronizirana na isti filter |
 | Članska kartica (PDF, browser print, email priponka) | ✅ | v1.23 | fpdf2 PDF generator (85.6×54 mm, DejaVuSans+Bold); HTML predloga za tisk (`@media print`); `GET /clani/{id}/kartica`, `GET /clani/{id}/kartica.pdf`, `POST /clani/{id}/posli-kartico`; priponke podpora v `posli_email()` (MIMEMultipart mixed); 6. seed predloga "Pošiljanje članske kartice"; `kartica_polja` nastavitev s checkboxi; gumba v detail.html; 5 testov |
 | Filter Plačniki za izbrano leto v Obvestila | ✅ | v1.23 | `bulk_filter=placniki` v `/obvestila/posli`; pošlje vsem aktivnim članom z `datum_placila != None` za izbrano leto; dropdown opcija + JS opis; 1 test |
+| Popravki pošiljanja obvestil + AJAX autocomplete iskanja članov | ✅ | v1.24 | C1: server bere `nacin` form param namesto ugibanja iz `clan_id`; C2: disabled gumb dokler ni izbran član (Posameznik); C3: AJAX autocomplete `/clani/iskanje` (iskanje po imenu, priimku, klicnem znaku); H1+H2: `predloga_id`+`leto` iz query params (klik iz seznam.html); H3: confirm dialog pred bulk pošiljanjem; H4: `shranjeniClanId` ohrani izbiro pri Posam→Bulk→Posam; H5: preverjanje obstoja predloge; M5: autocomplete briše `clan_id` ob vsaki spremembi; DOM XSS popravek (innerHTML → DOM API); 5 novih testov |
 
 ---
 
@@ -179,4 +180,4 @@ Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhn
 
 ---
 
-*Zadnja posodobitev: 2026-03-10 (v1.23)*
+*Zadnja posodobitev: 2026-03-10 (v1.24)*

@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.23 | Datum: 2026-03-10*
+*Različica 1.24 | Datum: 2026-03-10*
 
 ---
 
@@ -770,7 +770,7 @@ Kliknite **Pošlji obvestilo** v navigacijski vrstici ali pri posameznem članu/
 2. **Izberite leto** – za QR kodo in morebitni filter neplačnikov.
 3. **Uredite zadevo in telo** – po potrebi prilagodite besedilo.
 4. **Izberite prejemnika:**
-   - **Posameznik** – vnesite ID člana (ali kliknete gumb iz kartice člana)
+   - **Posameznik** – začnite tipkati ime, priimek ali klicni znak (najmanj 2 znaka); iz spustnega seznama izberite člana. Gumb *Pošlji* se aktivira šele ko je član izbran. Gumb iz kartice člana ali seznam.html samodejno predizpolni polje.
    - **Skupinsko pošiljanje** – pošlje e-pošto skupini prejemnikov glede na izbrani filter:
      - **Neplačniki za izbrano leto** – vsi aktivni člani, ki za izbrano leto še niso plačali
      - **Plačniki za izbrano leto** – vsi aktivni člani, ki so za izbrano leto že plačali
@@ -778,7 +778,7 @@ Kliknite **Pošlji obvestilo** v navigacijski vrstici ali pri posameznem članu/
      - **Člani, katerim RD poteče v 180 dneh** – aktivni člani s skoro potečenim RD
      - **Vsi aktivni člani** – vsi člani z `aktiven=Da`
      - **Vsi člani (aktivni in neaktivni)** – brez filtra po aktivnosti
-5. Kliknite **Pošlji**.
+5. Kliknite **Pošlji**. Pri skupinskem pošiljanju se prikaže potrditveni dialog z imenom izbrane skupine.
 
 Po pošiljanju se prikaže stran z rezultatom: število poslanih sporočil in število preskočenih (člani brez vpisanega e-poštnega naslova).
 
@@ -895,4 +895,4 @@ Odkljukana polja se ne prikažejo na kartici (niti v PDF niti pri tisku).
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.23 (2026-03-10)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.24 (2026-03-10)*

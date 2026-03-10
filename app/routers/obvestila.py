@@ -231,12 +231,19 @@ async def posli_get(
         return redirect
 
     predloge = db.query(EmailPredloga).order_by(EmailPredloga.id).all()
-    leto_zdaj = date.today().year
 
     # Predinizializacija iz query parametrov (klik iz detail.html ali seznam.html)
     clan_id_str = request.query_params.get("clan_id", "")
     clan_id = int(clan_id_str) if clan_id_str.isdigit() else None
     izbran_clan = db.query(Clan).filter(Clan.id == clan_id).first() if clan_id else None
+
+    # H1: predloga_id iz query params
+    predloga_id_str = request.query_params.get("predloga_id", "")
+    predloga_id_param = int(predloga_id_str) if predloga_id_str.isdigit() else None
+
+    # H2: leto iz query params
+    leto_str = request.query_params.get("leto", "")
+    leto_zdaj = int(leto_str) if leto_str.isdigit() else date.today().year
 
     flash = request.session.pop("obv_flash", None)
     flash_tip = request.session.pop("obv_flash_tip", "danger")
@@ -251,6 +258,7 @@ async def posli_get(
             "is_editor": True,
             "leto_zdaj": leto_zdaj,
             "izbran_clan": izbran_clan,
+            "predloga_id_param": predloga_id_param,
             "flash": flash,
             "flash_tip": flash_tip,
         },
@@ -266,6 +274,7 @@ async def posli_post(
     leto: int = Form(...),
     clan_id: str = Form(""),
     bulk_filter: str = Form("neplacniki"),
+    nacin: str = Form("bulk"),
     _csrf: None = Depends(csrf_protect),
     db: Session = Depends(get_db),
 ) -> Response:
@@ -274,6 +283,18 @@ async def posli_post(
         return redirect
 
     predloga = db.query(EmailPredloga).filter(EmailPredloga.id == predloga_id).first()
+
+    # H5: predloga mora obstajati
+    if not predloga:
+        request.session["obv_flash"] = "Izbrana predloga ne obstaja več. Izberite drugo."
+        request.session["obv_flash_tip"] = "danger"
+        return RedirectResponse(url="/obvestila/posli", status_code=302)
+
+    # C1: pri načinu posameznik mora biti clan_id veljaven
+    if nacin == "posameznik" and (not clan_id or not clan_id.strip().isdigit()):
+        request.session["obv_flash"] = "Pri pošiljanju posamezniku morate izbrati člana."
+        request.session["obv_flash_tip"] = "danger"
+        return RedirectResponse(url="/obvestila/posli", status_code=302)
 
     # Preveri SMTP nastavitve
     try:
@@ -286,8 +307,8 @@ async def posli_post(
     poslano = 0
     preskoceno = 0
 
-    qr = predloga.vkljuci_qr if predloga else False
-    prilozi_kartico = predloga.prilozi_kartico if predloga else False
+    qr = predloga.vkljuci_qr
+    prilozi_kartico = predloga.prilozi_kartico
 
     # Priprava konteksta za kartico (samo če je potrebno)
     if prilozi_kartico:
@@ -301,7 +322,7 @@ async def posli_post(
         pdf_bytes = generiraj_kartico_pdf(clan, leto, klub_ime, klub_oznaka, kartica_polja)
         return [(kartica_filename(clan, clan.id, leto), pdf_bytes, "application/pdf")]
 
-    if clan_id and clan_id.strip().isdigit():
+    if nacin == "posameznik":
         # Pošlji posamezniku
         clan = db.query(Clan).filter(Clan.id == int(clan_id)).first()
         if clan and clan.elektronska_posta and "@" in clan.elektronska_posta:
