@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.24 | Datum: 2026-03-10*
+*Različica 1.25 | Datum: 2026-03-18*
 
 ---
 
@@ -518,6 +518,11 @@ S spustnim seznamom **Akcija** filtrirajte po vrsti dejanja:
 | `izvoz_backup_db` | SQLite backup |
 | `2fa_aktivirana` | Uporabnik je aktiviral dvostopenjsko avtentikacijo |
 | `2fa_onemogocena` | Uporabnik je onemogočil dvostopenjsko avtentikacijo |
+| `geslo_spremenjeno` | Uporabnik je spremenil svoje geslo |
+| `2fa_vklop` | Uporabnik je vklopil 2FA |
+| `2fa_izklop` | Uporabnik je izklopil 2FA |
+| `naprave_odjava` | Uporabnik je odjavil vse zaupljive naprave |
+| `nastavitve_urejene` | Administrator je posodobil nastavitve kluba |
 
 ### Izvoz dnevnika
 
@@ -895,4 +900,4 @@ Odkljukana polja se ne prikažejo na kartici (niti v PDF niti pri tisku).
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.24 (2026-03-10)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.25 (2026-03-18)*

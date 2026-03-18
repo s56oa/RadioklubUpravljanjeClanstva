@@ -12,6 +12,7 @@ from ..database import get_db
 from ..models import Uporabnik, ZaupljivaNaprava
 from ..auth import require_login, hash_geslo, preveri_geslo, preveri_zahteve_gesla
 from ..csrf import get_csrf_token, csrf_protect
+from ..audit_log import log_akcija
 
 router = APIRouter(prefix="/profil")
 templates = Jinja2Templates(directory="app/templates")
@@ -121,6 +122,10 @@ async def spremeni_geslo(
     u.geslo_hash = hash_geslo(novo_geslo)
     db.commit()
 
+    log_akcija(db, user["ime"], "geslo_spremenjeno",
+               f"Uporabnik {u.uporabnisko_ime} spremenil geslo",
+               ip=request.client.host if request.client else None)
+
     return RedirectResponse(url="/profil?geslo=1", status_code=302)
 
 
@@ -188,6 +193,9 @@ async def tfa_potrdi(
         u.totp_aktiven = True
         db.commit()
         request.session.pop("_2fa_nova_skrivnost", None)
+        log_akcija(db, user["ime"], "2fa_vklop",
+                   f"Uporabnik {u.uporabnisko_ime} vklopil 2FA",
+                   ip=request.client.host if request.client else None)
         return RedirectResponse(url="/profil?2fa=1", status_code=302)
 
     # Napaka – QR regeneriramo iz iste skrivnosti
@@ -229,6 +237,9 @@ async def tfa_onemogoči(
         # Ob onemogočitvi 2FA izbrišemo tudi vse zaupljive naprave
         db.query(ZaupljivaNaprava).filter(ZaupljivaNaprava.uporabnik_id == u.id).delete()
         db.commit()
+        log_akcija(db, user["ime"], "2fa_izklop",
+                   f"Uporabnik {u.uporabnisko_ime} izklopil 2FA",
+                   ip=request.client.host if request.client else None)
         response = RedirectResponse(url="/profil?2fa_off=1", status_code=302)
         response.delete_cookie("_2fa_device")
         return response
@@ -260,6 +271,9 @@ async def odjavi_naprave(
         ZaupljivaNaprava.uporabnik_id == user["id"]
     ).delete()
     db.commit()
+    log_akcija(db, user["ime"], "naprave_odjava",
+               f"Uporabnik {user['ime']} odjavil vse zaupljive naprave",
+               ip=request.client.host if request.client else None)
     response = RedirectResponse(url="/profil?naprave=0", status_code=302)
     response.delete_cookie("_2fa_device")
     return response

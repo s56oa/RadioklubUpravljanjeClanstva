@@ -1,6 +1,6 @@
 # Varnostni pregled – S59DGO Upravljanje Članstva
 
-*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-10 (v1.24)*
+*Datum pregleda: 2026-02-23 | Posodobljeno: 2026-03-18 (v1.25)*
 
 ---
 
@@ -69,6 +69,9 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Server-side validacija parametra `nacin` pri `POST /obvestila/posli` – prepreči tihi bulk send ko je izbran način "Posameznik" brez veljavnega `clan_id` | ✅ | v1.24 |
 | Preverjanje obstoja predloge pred pošiljanjem – `None` predloga vrne flash napako, ne tiho pošiljanje (H5) | ✅ | v1.24 |
 | `/clani/iskanje` JSON endpoint zahteva editor+ vlogo (JSONResponse 401/403 brez seje oz. pravic) | ✅ | v1.24 |
+| LIKE wildcard escape v iskanju članov – `%` in `_` v iskalnem nizu se escapata (preprečitev nenamerne vrnitvi vseh zapisov) | ✅ | v1.25 |
+| Audit log za profil operacije – geslo spremenjeno, 2FA vklop/izklop, odjava zaupljivih naprav zdaj v audit_log | ✅ | v1.25 |
+| Audit log za spremembe nastavitev – vse spremembe nastavitev kluba (vključno SMTP) zdaj v audit_log | ✅ | v1.25 |
 
 ---
 
@@ -239,6 +242,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.22 | Brez novih varnostnih tveganj; spremembe so UI/UX (date sortiranje v DataTables, dashboard filtri) – brez novih endpointov, brez novih vhodnih podatkov, brez sprememb avtorizacije |
 | v1.23 | `Content-Disposition` filename sanitizacija za PDF kartice (klicni znak filtriran na alfanumerične znake); validacija leta (2000–2100) pri pošiljanju kartice; SMTP pre-check pred generacijo PDF (preprečitev nepotrebne CPU porabe) |
 | v1.24 | DOM XSS popravek v AJAX autocomplete (`innerHTML` → DOM API); server-side `nacin` validacija v `/obvestila/posli` (preprečitev tihega bulk send); H5 predloga `None` check; `/clani/iskanje` zahteva editor+ vlogo |
+| v1.25 | LIKE wildcard escape v iskanju članov; audit log za profil operacije (geslo, 2FA vklop/izklop, odjava naprav); audit log za nastavitve kluba; `KlubContextMiddleware` 60s cache (zmanjšanje DB obremenitve); prenosljiv datum format na kartici; popravek es_stevilka tipa; dashboard agregatne poizvedbe |
 
 ---
 

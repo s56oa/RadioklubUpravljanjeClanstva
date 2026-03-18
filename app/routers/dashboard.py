@@ -45,16 +45,16 @@ async def index(request: Request, db: Session = Depends(get_db)) -> Response:
     )
     ure_letos = round(float(ure_raw or 0), 1)
 
-    # Plačila po letu – zadnjih 10 let
+    # Plačila po letu – zadnjih 10 let (ena agregatna poizvedba)
     leta = list(range(leto_zdaj - 9, leto_zdaj + 1))
-    placila_po_letu = []
-    for y in leta:
-        count = (
-            db.query(Clanarina)
-            .filter(Clanarina.leto == y, Clanarina.datum_placila != None)
-            .count()
-        )
-        placila_po_letu.append(count)
+    placila_rows = (
+        db.query(Clanarina.leto, func.count(Clanarina.id))
+        .filter(Clanarina.leto.in_(leta), Clanarina.datum_placila != None)
+        .group_by(Clanarina.leto)
+        .all()
+    )
+    placila_dict = dict(placila_rows)
+    placila_po_letu = [placila_dict.get(y, 0) for y in leta]
 
     # Tipi členstva – aktivni člani
     tipi_rows = (
@@ -67,15 +67,15 @@ async def index(request: Request, db: Session = Depends(get_db)) -> Response:
     tipi_labele = [r[0] or "Neznan" for r in tipi_rows]
     tipi_vrednosti = [r[1] for r in tipi_rows]
 
-    # Delovne ure po letu – zadnjih 10 let
-    ure_po_letu = []
-    for y in leta:
-        ure = (
-            db.query(func.sum(Aktivnost.delovne_ure))
-            .filter(Aktivnost.leto == y, Aktivnost.delovne_ure != None)
-            .scalar()
-        )
-        ure_po_letu.append(round(float(ure or 0), 1))
+    # Delovne ure po letu – zadnjih 10 let (ena agregatna poizvedba)
+    ure_rows = (
+        db.query(Aktivnost.leto, func.sum(Aktivnost.delovne_ure))
+        .filter(Aktivnost.leto.in_(leta), Aktivnost.delovne_ure != None)
+        .group_by(Aktivnost.leto)
+        .all()
+    )
+    ure_dict = {r[0]: round(float(r[1] or 0), 1) for r in ure_rows}
+    ure_po_letu = [ure_dict.get(y, 0) for y in leta]
 
     return templates.TemplateResponse(
         request,

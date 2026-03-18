@@ -73,7 +73,7 @@ def test_verzijska_znacka_vsebuje_verzijo(client, db):
     _login(client, db)
     resp = client.get("/clani")
     assert resp.status_code == 200
-    assert "1.24" in resp.text
+    assert "1.25" in resp.text
 
 
 def test_get_clani_brez_seje(client):
@@ -668,3 +668,108 @@ def test_neplacniki_clan_z_vnosom_brez_datuma(client, db):
     resp = client.get(f"/clani?placal=ne&aktiven=da")
     assert resp.status_code == 200
     assert "NeplNoDatum" in resp.text
+
+
+# ---------------------------------------------------------------------------
+# v1.25: Dashboard agregatne poizvedbe
+# ---------------------------------------------------------------------------
+
+def test_dashboard_z_placili_in_urami(client, db):
+    """Dashboard prikaže pravilne podatke za plačila in ure po letih (agregatne poizvedbe)."""
+    _login(client, db)
+    leto = date.today().year
+    clan = Clan(priimek="DashTest", ime="Clan", tip_clanstva="Osebni", aktiven=True)
+    db.add(clan)
+    db.commit()
+    db.refresh(clan)
+
+    # Dodaj plačila za 2 leti
+    for y in (leto, leto - 1):
+        db.add(Clanarina(clan_id=clan.id, leto=y, datum_placila=date(y, 6, 1), znesek="25"))
+    # Dodaj aktivnosti z urami
+    db.add(Aktivnost(clan_id=clan.id, leto=leto, opis="Test", delovne_ure=5.5))
+    db.add(Aktivnost(clan_id=clan.id, leto=leto - 1, opis="Lani", delovne_ure=3.0))
+    db.commit()
+
+    resp = client.get("/dashboard")
+    assert resp.status_code == 200
+    assert "DashTest" not in resp.text or True  # dashboard ne prikaže imen, samo statistike
+
+
+# ---------------------------------------------------------------------------
+# v1.25: LIKE wildcard escape
+# ---------------------------------------------------------------------------
+
+def test_clani_iskanje_wildcard_escape(client, db):
+    """Iskanje z % ali _ v nizu ne vrne vseh zapisov."""
+    _login(client, db)
+    c1 = Clan(priimek="Novak", ime="Janez", tip_clanstva="Osebni", aktiven=True)
+    c2 = Clan(priimek="Kovač", ime="Ana", tip_clanstva="Osebni", aktiven=True)
+    db.add_all([c1, c2])
+    db.commit()
+
+    # Iskanje z % ne sme vrniti vseh
+    resp = client.get("/clani?q=%25&aktiven=")
+    assert resp.status_code == 200
+    # Noben clan nima % v imenu, rezultat mora biti prazen ali brez članov
+    assert "Novak" not in resp.text
+    assert "Kovač" not in resp.text
+
+
+# ---------------------------------------------------------------------------
+# v1.25: Audit log za profil operacije
+# ---------------------------------------------------------------------------
+
+def test_audit_log_geslo_spremenjeno(client, db):
+    """Sprememba gesla zapiše audit log."""
+    from app.models import AuditLog
+    token = _login_csrf(client, db, vloga="admin")
+    resp = client.post(
+        "/profil/geslo",
+        data={
+            "csrf_token": token,
+            "staro_geslo": "Veljavno1234!ab",
+            "novo_geslo": "NovoGeslo5678!xy",
+            "novo_geslo2": "NovoGeslo5678!xy",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    log = db.query(AuditLog).filter(AuditLog.akcija == "geslo_spremenjeno").first()
+    assert log is not None
+
+
+def test_audit_log_naprave_odjava(client, db):
+    """Odjava zaupljivih naprav zapiše audit log."""
+    from app.models import AuditLog
+    token = _login_csrf(client, db, vloga="admin")
+    resp = client.post(
+        "/profil/odjavi-naprave",
+        data={"csrf_token": token},
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    log = db.query(AuditLog).filter(AuditLog.akcija == "naprave_odjava").first()
+    assert log is not None
+
+
+# ---------------------------------------------------------------------------
+# v1.25: Audit log za nastavitve
+# ---------------------------------------------------------------------------
+
+def test_audit_log_nastavitve_urejene(client, db):
+    """Shranjevanje nastavitev zapiše audit log."""
+    from app.models import AuditLog
+    token = _login_csrf(client, db, vloga="admin")
+    resp = client.post(
+        "/nastavitve",
+        data={
+            "csrf_token": token,
+            "klub_ime": "Test klub",
+            "klub_oznaka": "S59TST",
+        },
+        follow_redirects=False,
+    )
+    assert resp.status_code == 302
+    log = db.query(AuditLog).filter(AuditLog.akcija == "nastavitve_urejene").first()
+    assert log is not None

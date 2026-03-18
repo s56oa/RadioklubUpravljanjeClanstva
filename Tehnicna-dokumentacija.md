@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.24 | Datum: 2026-03-10*
+*Različica 1.25 | Datum: 2026-03-18*
 
 ---
 
@@ -62,7 +62,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 | IP resolving | uvicorn ProxyHeadersMiddleware (X-Forwarded-For) | — |
 | Migracije | Alembic | 1.13+ |
 | Logging | RotatingFileHandler → data/app.log (5 MB × 5) | — |
-| Kontekst kluba | KlubContextMiddleware → request.state | — |
+| Kontekst kluba | KlubContextMiddleware → request.state (60s cache, preskoči /static/) | — |
 | E-pošta | smtplib (stdlib) + Jinja2 render + CID inline PNG embed | — |
 | Frontend | Bootstrap 5.3 + DataTables + Bootstrap Icons + Chart.js | CDN |
 | Excel | openpyxl | 3.1 |
@@ -97,7 +97,8 @@ UpravljanjeClanstva/
 │       ├── 004_clan_vloge.py
 │       ├── 005_email_predloge.py
 │       ├── 006_indeksi.py
-│       └── 007_email_predloge_qr.py
+│       ├── 007_email_predloge_qr.py
+│       └── 008_email_predloge_kartica.py
 ├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
 │   ├── clanstvo.db
 │   └── app.log           – rotating log (5 MB × 5)
@@ -925,7 +926,7 @@ Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejn
 pytest tests/ -v
 ```
 
-Vsi testi (154) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
+Vsi testi (159) uporabljajo SQLite v pomnilniku – ne pišejo v `data/clanstvo.db`.
 
 ---
 
@@ -1046,12 +1047,13 @@ alembic_command.upgrade(cfg, "head")
 | `005` | Nova tabela `email_predloge` (predloge za e-poštna obvestila) |
 | `006` | DB indeksi: `ix_clani_aktiven`, `ix_clanarine_leto`, `ix_aktivnosti_leto` |
 | `007` | Novo polje `email_predloge.vkljuci_qr` (Boolean, server_default=0) – per-template konfiguracija QR kode |
+| `008` | Novo polje `email_predloge.prilozi_kartico` (Boolean, server_default=0) – priložitev članske kartice PDF |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`007`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`008`. **Podatki se ohranijo.**
 
 ### KlubContextMiddleware
 
-`KlubContextMiddleware` (v `main.py`) se izvede pri vsaki zahtevi in prebere `klub_oznaka` ter `klub_ime` iz tabele `nastavitve`. Poleg tega middleware nastavi statične podatke aplikacije: `request.state.app_version`, `request.state.app_release_date` in `request.state.app_license` (vsebina datoteke `LICENSE`, prebrana ob zagonu). Vse vrednosti so dostopne v vseh Jinja2 predlogah. Navigacijska vrstica in naslov strani (`<title>`) sta dinamična; verzijska značka v nogi prikazuje številko različice in odpre Bootstrap modal z datumom in licenco.
+`KlubContextMiddleware` (v `main.py`) se izvede pri vsaki zahtevi in prebere `klub_oznaka` ter `klub_ime` iz tabele `nastavitve`. Od v1.25 middleware predpomni vrednosti za 60 sekund in preskoči DB poizvedbe za `/static/` poti, kar zmanjša število nepotrebnih poizvedb. Poleg tega middleware nastavi statične podatke aplikacije: `request.state.app_version`, `request.state.app_release_date` in `request.state.app_license` (vsebina datoteke `LICENSE`, prebrana ob zagonu). Vse vrednosti so dostopne v vseh Jinja2 predlogah. Navigacijska vrstica in naslov strani (`<title>`) sta dinamična; verzijska značka v nogi prikazuje številko različice in odpre Bootstrap modal z datumom in licenco.
 
 ### Login tok z 2FA
 
@@ -1087,6 +1089,11 @@ Audit log akcije v zvezi z 2FA:
 | `login_2fa_zaupljiva_nova` | Nova zaupljiva naprava shranjena po uspešni 2FA |
 | `2fa_aktivirana` | Uporabnik je aktiviral 2FA |
 | `2fa_onemogocena` | Uporabnik je onemogočil 2FA |
+| `geslo_spremenjeno` | Uporabnik je spremenil geslo prek profila |
+| `2fa_vklop` | Uporabnik je vklopil 2FA prek profila |
+| `2fa_izklop` | Uporabnik je izklopil 2FA prek profila |
+| `naprave_odjava` | Uporabnik je odjavil vse zaupljive naprave |
+| `nastavitve_urejene` | Administrator je posodobil nastavitve kluba |
 
 ---
 
@@ -1141,6 +1148,9 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | DOM XSS popravek v AJAX autocomplete (`innerHTML` → DOM API za user data) | v1.24 |
 | Server-side `nacin` validacija v `POST /obvestila/posli`; H5 predloga `None` check | v1.24 |
 | `/clani/iskanje` JSON endpoint zahteva editor+ vlogo (JSONResponse 401/403) | v1.24 |
+| LIKE wildcard escape v iskanju članov (`%`, `_` ne delujeta kot wildcardi) | v1.25 |
+| Audit log za profil operacije (geslo, 2FA vklop/izklop, odjava naprav) | v1.25 |
+| Audit log za spremembe nastavitev kluba | v1.25 |
 
 ### Varnostno vzdrževanje
 
@@ -1170,7 +1180,7 @@ pytest tests/ -v
 | `test_normalizacija.py` | _normaliziraj_clan (title case, KZ, email) | 6 |
 | `test_config.py` | get_nastavitev, get_seznam, get_tipi_clanstva | 4 |
 | `test_audit.py` | log_akcija, napaka ne propagira | 3 |
-| `test_routes.py` | login, /health, /clani (multi-select filtri, operaterski razred), /aktivnosti, /clanarine, /dashboard, neplačniki filter, verzijska značka, backup-excel dostop, IDOR clanarina+aktivnosti, validacija vnosa, filtrirani Excel izvoz, neplacniki logika | 36 |
+| `test_routes.py` | login, /health, /clani (multi-select filtri, operaterski razred, LIKE escape), /aktivnosti, /clanarine, /dashboard (agregatne poizvedbe), neplačniki filter, verzijska značka, backup-excel dostop, IDOR clanarina+aktivnosti, validacija vnosa, filtrirani Excel izvoz, neplacniki logika, audit log (geslo, naprave, nastavitve) | 41 |
 | `test_vloge.py` | prikaz vlog, dodaj (editor/bralec/brez seje), uredi (editor, brez pravic, IDOR, neveljavni datum), izbriši (admin/urednik/brez seje, IDOR), kaskadno brisanje, dropdown, validacija datumov | 22 |
 | `test_upn.py` | UPN format (19 polj, kontrolna vsota, obreži), SVG/PNG generiranje, HTTP endpointi | 15 |
 | `test_clani.py` | iskanje po imenu, iskanje po klicnem znaku, brez seje (401/302) | 3 |
@@ -1178,7 +1188,7 @@ pytest tests/ -v
 | `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ, star datum (>10 let), zaščita pred znižanjem | 12 |
 | `test_uvoz_placila.py` | _parse_referenca (veljaven/vodilne ničle/lowercase/brez vrednosti/napačen format/brez presledka), predogled po referenci/imenu/prioriteta/ES-številka/neobstoječ član/brez datuma, uvoz workbook (referenca, backward compat) | 14 |
 | `test_kartica.py` | PDF download (application/pdf, %PDF header), HTML prikaz (ime člana), brez pravic (bralec → redirect), pošlji brez emaila (flash opozorilo), pošlji mock SMTP (audit log kartica_poslana) | 5 |
-| **Skupaj** | | **154** |
+| **Skupaj** | | **159** |
 
 ### Testna infrastruktura
 
@@ -1191,4 +1201,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.24*
+*Radio klub Člani – tehnična dokumentacija, različica 1.25*

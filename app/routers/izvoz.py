@@ -215,7 +215,7 @@ def _najdi_clana_po_referenci(ref_id: int, db: Session) -> Clan | None:
     clan = db.query(Clan).filter(Clan.id == ref_id).first()
     if clan:
         return clan
-    return db.query(Clan).filter(Clan.es_stevilka == str(ref_id)).first()
+    return db.query(Clan).filter(Clan.es_stevilka == ref_id).first()
 
 
 def _parse_excel_placila_pregled(

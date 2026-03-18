@@ -65,11 +65,12 @@ def _filtriraj_clane(
         query = query.filter(Clan.aktiven == False)
 
     if q:
+        escaped_q = q.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
         query = query.filter(
             or_(
-                Clan.priimek.ilike(f"%{q}%"),
-                Clan.ime.ilike(f"%{q}%"),
-                Clan.klicni_znak.ilike(f"%{q}%"),
+                Clan.priimek.ilike(f"%{escaped_q}%", escape="\\"),
+                Clan.ime.ilike(f"%{escaped_q}%", escape="\\"),
+                Clan.klicni_znak.ilike(f"%{escaped_q}%", escape="\\"),
             )
         )
 

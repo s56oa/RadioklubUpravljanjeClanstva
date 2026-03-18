@@ -9,6 +9,7 @@ from ..auth import require_login, is_admin
 from ..config import get_seznam, get_tipi_clanstva, get_operaterski_razredi
 from ..models import TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO, VLOGE_CLANOV_PRIVZETO
 from ..csrf import get_csrf_token, csrf_protect
+from ..audit_log import log_akcija
 
 # Vsa polja članske kartice (v zaporedju prikaza)
 KARTICA_POLJA_VSA = [
@@ -137,4 +138,10 @@ async def nastavitve_shrani(request: Request, db: Session = Depends(get_db), _cs
         db.add(Nastavitev(kljuc="kartica_polja", vrednost=kartica_vrednost))
 
     db.commit()
+
+    spremenjeni = [k for k, _ in KLJUCI_KLUB] + [k for k, _, _ in KLJUCI_SEZNAM] + [k for k, _ in KLJUCI_UPN] + [k for k, _ in KLJUCI_SMTP] + ["kartica_polja"]
+    log_akcija(db, user["ime"], "nastavitve_urejene",
+               f"Posodobljene nastavitve: {', '.join(spremenjeni)}",
+               ip=request.client.host if request.client else None)
+
     return RedirectResponse(url="/nastavitve?shranjen=1", status_code=302)

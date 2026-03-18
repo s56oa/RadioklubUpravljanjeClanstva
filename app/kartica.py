@@ -117,7 +117,7 @@ def generiraj_kartico_pdf(clan: Clan, leto: int, klub_ime: str,
             continue
         vrednost = getattr(clan, polje, None)
         if polje == "veljavnost_rd" and vrednost:
-            vrednost = vrednost.strftime("%-d. %-m. %Y")
+            vrednost = f"{vrednost.day}. {vrednost.month}. {vrednost.year}"
         if not vrednost or vrednost == "–":
             continue
         label = _KARTICA_POLJA_LABELE.get(polje, polje)

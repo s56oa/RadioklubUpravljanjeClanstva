@@ -78,6 +78,7 @@
 | Članska kartica (PDF, browser print, email priponka) | ✅ | v1.23 | fpdf2 PDF generator (85.6×54 mm, DejaVuSans+Bold); HTML predloga za tisk (`@media print`); `GET /clani/{id}/kartica`, `GET /clani/{id}/kartica.pdf`, `POST /clani/{id}/posli-kartico`; priponke podpora v `posli_email()` (MIMEMultipart mixed); 6. seed predloga "Pošiljanje članske kartice"; `kartica_polja` nastavitev s checkboxi; gumba v detail.html; 5 testov |
 | Filter Plačniki za izbrano leto v Obvestila | ✅ | v1.23 | `bulk_filter=placniki` v `/obvestila/posli`; pošlje vsem aktivnim članom z `datum_placila != None` za izbrano leto; dropdown opcija + JS opis; 1 test |
 | Popravki pošiljanja obvestil + AJAX autocomplete iskanja članov | ✅ | v1.24 | C1: server bere `nacin` form param namesto ugibanja iz `clan_id`; C2: disabled gumb dokler ni izbran član (Posameznik); C3: AJAX autocomplete `/clani/iskanje` (iskanje po imenu, priimku, klicnem znaku); H1+H2: `predloga_id`+`leto` iz query params (klik iz seznam.html); H3: confirm dialog pred bulk pošiljanjem; H4: `shranjeniClanId` ohrani izbiro pri Posam→Bulk→Posam; H5: preverjanje obstoja predloge; M5: autocomplete briše `clan_id` ob vsaki spremembi; DOM XSS popravek (innerHTML → DOM API); 5 novih testov |
+| Code review popravki in audit logiranje | ✅ | v1.25 | **Popravki:** es_stevilka tip (Integer, ne str); prenosljiv datum na kartici (f-string namesto strftime %-d); KlubContextMiddleware predpomnjenje (60s TTL, preskoči /static/); LIKE wildcard escape (%, _); dashboard agregatne poizvedbe (2 namesto 20). **Audit log:** geslo_spremenjeno, 2fa_vklop, 2fa_izklop, naprave_odjava, nastavitve_urejene. 5 novih testov |
 
 ---
 
@@ -174,10 +175,10 @@ V v1.19 so bili dodani najpomembnejši indeksi (Alembic 006). Preostale možne i
 - **Pristop:** `functools.lru_cache` z ročnim izklopom ob shranjevanju v `/nastavitve`; ali enostavni `dict` s `time.time()` TTL v `config.py`.
 - **Obseg:** ~1 ura
 
-### `KlubContextMiddleware` overhead
+### ~~`KlubContextMiddleware` overhead~~ ✅ IMPLEMENTIRANO (v1.25)
 
-Vsaka HTTP zahteva sproži 2 DB poizvedbi (`klub_ime`, `klub_oznaka`). Pri majhnem prometu zanemarljivo; pri večji obremenitvi ali migraciji na produkcijski strežnik smiselno predpomnjiti v `app.state` z izklopom ob spremembi nastavitev.
+Implementiran 60-sekundni in-memory cache z preskokom `/static/` poti. Zmanjšano z 2 DB poizvedbi na zahtevo na ≤2 poizvedbi na minuto.
 
 ---
 
-*Zadnja posodobitev: 2026-03-10 (v1.24)*
+*Zadnja posodobitev: 2026-03-18 (v1.25)*

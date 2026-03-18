@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.24"
-APP_RELEASE_DATE = "2026-03-10"
+APP_VERSION = "1.25"
+APP_RELEASE_DATE = "2026-03-18"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -144,18 +144,32 @@ class InactivityTimeoutMiddleware(BaseHTTPMiddleware):
 
 class KlubContextMiddleware(BaseHTTPMiddleware):
     """Na vsako zahtevo doda request.state.klub_oznaka/klub_ime iz baze in statične app podatke."""
+
+    _SKIP_PATHS_PREFIX = ("/static/",)
+    _cache: dict = {"oznaka": "", "ime": "", "ts": 0.0}
+    _CACHE_TTL = 60  # sekund
+
     async def dispatch(self, request: Request, call_next):
-        db = SessionLocal()
-        try:
-            oznaka = db.query(Nastavitev).filter(Nastavitev.kljuc == "klub_oznaka").first()
-            ime = db.query(Nastavitev).filter(Nastavitev.kljuc == "klub_ime").first()
-            request.state.klub_oznaka = oznaka.vrednost if oznaka else ""
-            request.state.klub_ime = ime.vrednost if ime else ""
-        except Exception:
-            request.state.klub_oznaka = ""
-            request.state.klub_ime = ""
-        finally:
-            db.close()
+        path = request.url.path
+        skip_db = any(path.startswith(p) for p in self._SKIP_PATHS_PREFIX)
+
+        if not skip_db:
+            now = time.time()
+            if now - self._cache["ts"] > self._CACHE_TTL:
+                db = SessionLocal()
+                try:
+                    oznaka = db.query(Nastavitev).filter(Nastavitev.kljuc == "klub_oznaka").first()
+                    ime = db.query(Nastavitev).filter(Nastavitev.kljuc == "klub_ime").first()
+                    self._cache["oznaka"] = oznaka.vrednost if oznaka else ""
+                    self._cache["ime"] = ime.vrednost if ime else ""
+                    self._cache["ts"] = now
+                except Exception:
+                    pass
+                finally:
+                    db.close()
+
+        request.state.klub_oznaka = self._cache["oznaka"]
+        request.state.klub_ime = self._cache["ime"]
         request.state.app_version = APP_VERSION
         request.state.app_release_date = APP_RELEASE_DATE
         request.state.app_license = APP_LICENSE
