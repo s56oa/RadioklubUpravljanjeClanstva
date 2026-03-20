@@ -1,7 +1,7 @@
 # CLAUDE.md – Radio klub Upravljanje Članstva
 
 Spletna aplikacija za upravljanje članstva radijskega kluba.
-Trenutna različica: **v1.25** (produkcijsko stabilna)
+Trenutna različica: **v1.26** (produkcijsko stabilna)
 
 ## Lokalni zagon
 

@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.25 | Datum: 2026-03-18*
+*Različica 1.26 | Datum: 2026-03-20*
 
 ---
 
@@ -900,4 +900,4 @@ Odkljukana polja se ne prikažejo na kartici (niti v PDF niti pri tisku).
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.25 (2026-03-18)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.26 (2026-03-20)*

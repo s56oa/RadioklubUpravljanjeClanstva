@@ -79,6 +79,7 @@
 | Filter Plačniki za izbrano leto v Obvestila | ✅ | v1.23 | `bulk_filter=placniki` v `/obvestila/posli`; pošlje vsem aktivnim članom z `datum_placila != None` za izbrano leto; dropdown opcija + JS opis; 1 test |
 | Popravki pošiljanja obvestil + AJAX autocomplete iskanja članov | ✅ | v1.24 | C1: server bere `nacin` form param namesto ugibanja iz `clan_id`; C2: disabled gumb dokler ni izbran član (Posameznik); C3: AJAX autocomplete `/clani/iskanje` (iskanje po imenu, priimku, klicnem znaku); H1+H2: `predloga_id`+`leto` iz query params (klik iz seznam.html); H3: confirm dialog pred bulk pošiljanjem; H4: `shranjeniClanId` ohrani izbiro pri Posam→Bulk→Posam; H5: preverjanje obstoja predloge; M5: autocomplete briše `clan_id` ob vsaki spremembi; DOM XSS popravek (innerHTML → DOM API); 5 novih testov |
 | Code review popravki in audit logiranje | ✅ | v1.25 | **Popravki:** es_stevilka tip (Integer, ne str); prenosljiv datum na kartici (f-string namesto strftime %-d); KlubContextMiddleware predpomnjenje (60s TTL, preskoči /static/); LIKE wildcard escape (%, _); dashboard agregatne poizvedbe (2 namesto 20). **Audit log:** geslo_spremenjeno, 2fa_vklop, 2fa_izklop, naprave_odjava, nastavitve_urejene. 5 novih testov |
+| Nadgradnja varnostnih odvisnosti | ✅ | v1.26 | **Varnostne nadgradnje:** jinja2 3.1.4→3.1.6 (sandbox `\|attr` bypass fix), starlette 0.41.3→0.46.2 (Range header DoS fix), python-multipart 0.0.20→0.0.22 (path traversal fix), FastAPI 0.115.6→0.115.14 (patch bump). Dependabot PR #7 mergean; PR #8 in #9 rešena ročno (konzervativen version bump) |
 
 ---
 
@@ -181,4 +182,4 @@ Implementiran 60-sekundni in-memory cache z preskokom `/static/` poti. Zmanjšan
 
 ---
 
-*Zadnja posodobitev: 2026-03-18 (v1.25)*
+*Zadnja posodobitev: 2026-03-20 (v1.26)*

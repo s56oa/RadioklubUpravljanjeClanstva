@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.25 | Datum: 2026-03-18*
+*Različica 1.26 | Datum: 2026-03-20*
 
 ---
 
@@ -52,7 +52,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 
 | Komponenta | Tehnologija | Verzija |
 |------------|-------------|---------|
-| Backend | Python + FastAPI | 3.12 / 0.115 |
+| Backend | Python + FastAPI | 3.12 / 0.115.14 |
 | ASGI strežnik | uvicorn[standard] | 0.32 |
 | Baza podatkov | SQLite prek SQLAlchemy | 2.0 |
 | Predloge | Jinja2 | 3.1 |
@@ -1151,6 +1151,7 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | LIKE wildcard escape v iskanju članov (`%`, `_` ne delujeta kot wildcardi) | v1.25 |
 | Audit log za profil operacije (geslo, 2FA vklop/izklop, odjava naprav) | v1.25 |
 | Audit log za spremembe nastavitev kluba | v1.25 |
+| Nadgradnja varnostnih odvisnosti: jinja2 3.1.6 (sandbox bypass), starlette 0.46.2 (Range DoS), python-multipart 0.0.22 (path traversal), FastAPI 0.115.14 | v1.26 |
 
 ### Varnostno vzdrževanje
 
@@ -1201,4 +1202,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.25*
+*Radio klub Člani – tehnična dokumentacija, različica 1.26*
