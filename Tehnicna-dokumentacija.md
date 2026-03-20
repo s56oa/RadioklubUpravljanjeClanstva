@@ -52,7 +52,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 
 | Komponenta | Tehnologija | Verzija |
 |------------|-------------|---------|
-| Backend | Python + FastAPI | 3.12 / 0.115.14 |
+| Backend | Python + FastAPI | 3.12 / 0.135 |
 | ASGI strežnik | uvicorn[standard] | 0.32 |
 | Baza podatkov | SQLite prek SQLAlchemy | 2.0 |
 | Predloge | Jinja2 | 3.1 |
@@ -1151,7 +1151,7 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | LIKE wildcard escape v iskanju članov (`%`, `_` ne delujeta kot wildcardi) | v1.25 |
 | Audit log za profil operacije (geslo, 2FA vklop/izklop, odjava naprav) | v1.25 |
 | Audit log za spremembe nastavitev kluba | v1.25 |
-| Nadgradnja varnostnih odvisnosti: jinja2 3.1.6 (sandbox bypass), starlette 0.46.2 (Range DoS), python-multipart 0.0.22 (path traversal), FastAPI 0.115.14 | v1.26 |
+| Nadgradnja varnostnih odvisnosti: jinja2 3.1.6 (sandbox bypass), starlette 0.52.1 (Range DoS + multipart DoS), python-multipart 0.0.22 (path traversal), FastAPI 0.135.1 | v1.26 |
 
 ### Varnostno vzdrževanje
 

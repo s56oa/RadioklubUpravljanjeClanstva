@@ -73,9 +73,9 @@ Od različice v1.3 so bile odpravljene CSRF zaščita, politika gesel, validacij
 | Audit log za profil operacije – geslo spremenjeno, 2FA vklop/izklop, odjava zaupljivih naprav zdaj v audit_log | ✅ | v1.25 |
 | Audit log za spremembe nastavitev – vse spremembe nastavitev kluba (vključno SMTP) zdaj v audit_log | ✅ | v1.25 |
 | Nadgradnja jinja2 3.1.6 – odpravljen sandbox bypass (`\|attr` filter, posredni `str.format`) | ✅ | v1.26 |
-| Nadgradnja starlette 0.46.2 – odpravljen Range header parsing DoS v FileResponse | ✅ | v1.26 |
+| Nadgradnja starlette 0.52.1 – odpravljen Range header parsing DoS + multipart forms DoS | ✅ | v1.26 |
 | Nadgradnja python-multipart 0.0.22 – odpravljen path traversal v File filename | ✅ | v1.26 |
-| Nadgradnja FastAPI 0.115.14 – patch varnostne popravke | ✅ | v1.26 |
+| Nadgradnja FastAPI 0.115.6 → 0.135.1 – združljivost s starlette 0.52.1 | ✅ | v1.26 |
 
 ---
 
@@ -247,7 +247,7 @@ Aplikacija obdeluje osebne podatke članov (ime, naslov, telefon, e-pošta).
 | v1.23 | `Content-Disposition` filename sanitizacija za PDF kartice (klicni znak filtriran na alfanumerične znake); validacija leta (2000–2100) pri pošiljanju kartice; SMTP pre-check pred generacijo PDF (preprečitev nepotrebne CPU porabe) |
 | v1.24 | DOM XSS popravek v AJAX autocomplete (`innerHTML` → DOM API); server-side `nacin` validacija v `/obvestila/posli` (preprečitev tihega bulk send); H5 predloga `None` check; `/clani/iskanje` zahteva editor+ vlogo |
 | v1.25 | LIKE wildcard escape v iskanju članov; audit log za profil operacije (geslo, 2FA vklop/izklop, odjava naprav); audit log za nastavitve kluba; `KlubContextMiddleware` 60s cache (zmanjšanje DB obremenitve); prenosljiv datum format na kartici; popravek es_stevilka tipa; dashboard agregatne poizvedbe |
-| v1.26 | Nadgradnja varnostnih odvisnosti: jinja2 3.1.6 (sandbox bypass), starlette 0.46.2 (Range DoS), python-multipart 0.0.22 (path traversal), FastAPI 0.115.14 |
+| v1.26 | Nadgradnja varnostnih odvisnosti: jinja2 3.1.6 (sandbox bypass), starlette 0.52.1 (Range DoS + multipart DoS), python-multipart 0.0.22 (path traversal), FastAPI 0.135.1 |
 
 ---
 
