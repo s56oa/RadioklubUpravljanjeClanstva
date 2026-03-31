@@ -1,7 +1,7 @@
 # Multi-tenant arhitektura – Evaluacija
 
 *Dokument: evaluacija možnosti za multi-tenant verzijo aplikacije Radio klub Člani*
-*Datum: 2026-02-24 | Status: evaluacija, ni obveza implementacije*
+*Datum: 2026-02-24 | Posodobljeno: 2026-03-31 (ažurirano za v1.26) | Status: evaluacija, ni obveza implementacije*
 
 ---
 
@@ -23,14 +23,16 @@ ZRS (Zveza radioamaterjev Slovenije) bi gostila centralno instanco za 20–100 r
 1. [Arhitekturne variante](#1-arhitekturne-variante)
 2. [Primerjalna tabela](#2-primerjalna-tabela)
 3. [Priporočena arhitektura (Option B)](#3-priporočena-arhitektura-option-b)
-4. [Alternativa za večjo skalo (Option C)](#4-alternativa-za-večjo-skalo-option-c)
-5. [Super-admin tier](#5-super-admin-tier)
-6. [URL in routing strategija](#6-url-in-routing-strategija)
-7. [Ocena dela po opcijah](#7-ocena-dela-po-opcijah)
-8. [Varnost in GDPR](#8-varnost-in-gdpr)
-9. [Docker in infrastruktura](#9-docker-in-infrastruktura)
-10. [Portabilnost – exit strategija](#10-portabilnost--exit-strategija)
-11. [Tveganja in odprtа vprašanja](#11-tveganja-in-odprta-vprašanja)
+4. [Obstoječi middleware stack](#4-obstoječi-middleware-stack)
+5. [Podatkovni model – multi-tenant implikacije](#5-podatkovni-model--multi-tenant-implikacije)
+6. [Alternativa za večjo skalo (Option C)](#6-alternativa-za-večjo-skalo-option-c)
+7. [Super-admin tier](#7-super-admin-tier)
+8. [URL in routing strategija](#8-url-in-routing-strategija)
+9. [Ocena dela po opcijah](#9-ocena-dela-po-opcijah)
+10. [Varnost in GDPR](#10-varnost-in-gdpr)
+11. [Docker in infrastruktura](#11-docker-in-infrastruktura)
+12. [Portabilnost – exit strategija](#12-portabilnost--exit-strategija)
+13. [Tveganja in odprta vprašanja](#13-tveganja-in-odprta-vprašanja)
 
 ---
 
@@ -100,7 +102,7 @@ FastAPI (ena instanca, port 8000)
 - SQLite WAL mode priporočen za boljšo sočasnost
 - Nič cross-tenant poizvedb (kar je v tem primeru zahteva, ne slabost)
 
-**Ocena dela:** 6–10 tednov
+**Ocena dela:** 8–11 tednov
 
 ---
 
@@ -133,7 +135,7 @@ PostgreSQL
 - Kompleksnejša lokalna razvojna okolja
 - Operativni overhead: PostgreSQL vzdrževanje, backup, replication
 
-**Ocena dela:** 12–18 tednov
+**Ocena dela:** 15–20 tednov
 
 ---
 
@@ -175,7 +177,7 @@ CREATE TABLE clani (
 | **RAM poraba** | ❌ ~3–5 GB | ✅ ~200–400 MB | ✅ ~200–400 MB + PG | ✅ nizka |
 | **Backup per tenant** | ✅ Trivialen | ✅ Preprost | ⚠️ pg_dump --schema | ❌ Kompleksen |
 | **Sočasnost** | ✅ Ločeni procesi | ⚠️ SQLite WAL mode | ✅ PostgreSQL native | ✅ PostgreSQL |
-| **Obseg dela** | 1–3 dni | 6–10 tednov | 12–18 tednov | 6–10 tednov |
+| **Obseg dela** | 1–3 dni | 8–11 tednov | 15–20 tednov | 8–11 tednov |
 | **Priporočilo** | Za hiter start | **Optimalno** | Za 100+ klubov | Izključiti |
 
 ---
@@ -220,13 +222,29 @@ class TenantMiddleware(BaseHTTPMiddleware):
 # Vsak tenant ima svojo SQLAlchemy engine instanco
 _tenant_engines: dict[str, Engine] = {}
 
+def _run_tenant_migrations(engine: Engine) -> None:
+    """Zažene Alembic migracije za tenant-specifičen engine.
+
+    Uporablja enak pristop kot obstoječa _run_migrations() v main.py:
+    obstoječe baze brez alembic_version se označijo kot revizija 001,
+    nato se aplicirajo vse novejše migracije do head.
+    """
+    ini_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "alembic.ini"))
+    cfg = AlembicConfig(ini_path)
+    # Alembic uporabi dynamic engine namesto privzetega iz alembic.ini
+    cfg.attributes["connection"] = engine.connect()
+    inspector = sa_inspect(engine)
+    tables = inspector.get_table_names()
+    if "alembic_version" not in tables and "clani" in tables:
+        alembic_command.stamp(cfg, "001")
+    alembic_command.upgrade(cfg, "head")
+
 def get_tenant_engine(tenant_id: str) -> Engine:
     if tenant_id not in _tenant_engines:
         db_path = f"data/{tenant_id}/clanstvo.db"
         os.makedirs(f"data/{tenant_id}", exist_ok=True)
         engine = create_engine(f"sqlite:///{db_path}", ...)
-        Base.metadata.create_all(bind=engine)
-        _migriraj_bazo(engine)  # obstoječa funkcija
+        _run_tenant_migrations(engine)  # Alembic migracije (001–008+)
         _tenant_engines[tenant_id] = engine
     return _tenant_engines[tenant_id]
 
@@ -238,6 +256,10 @@ def get_db(request: Request):
     finally:
         db.close()
 ```
+
+> **Opomba:** Aplikacija ne uporablja `Base.metadata.create_all()`. Vse tabele se kreirajo
+> izključno prek Alembic migracij (trenutno 8 revizij: 001–008). Za novega tenanta se
+> zaženejo vse migracije od začetka, za obstoječega pa samo manjkajoče.
 
 #### 3. Ločitev `get_db` dependency
 
@@ -292,14 +314,101 @@ UpravljanjeClanstva/
 
 ---
 
-## 4. Alternativa za večjo skalo (Option C)
+## 4. Obstoječi middleware stack
+
+Aplikacija (v1.26) ima 6 middleware-ov z **natančno določenim vrstnim redom**. Multi-tenant implementacija mora ta vrstni red ohraniti in novi TenantMiddleware/DynamicDBMiddleware umestiti na pravilno mesto.
+
+### Trenutni middleware vrstni red (v `app.add_middleware`, obraten od execution)
+
+```python
+# 1. SecurityHeadersMiddleware        – varnostni HTTP headerji (X-Frame-Options, CSP, ...)
+# 2. InactivityTimeoutMiddleware       – 30 min neaktivnosti → odjava (zahteva session)
+# 3. SessionMiddleware                 – Starlette session (bcrypt, same_site=strict)
+# 4. ContentSizeLimitMiddleware        – POST/PUT/PATCH > 1 MB → HTTP 413
+# 5. KlubContextMiddleware             – request.state.klub_ime/oznaka iz DB (60s cache)
+# 6. ProxyHeadersMiddleware            – X-Forwarded-For / X-Real-IP
+```
+
+### Multi-tenant umestitev
+
+```python
+# Predlagan vrstni red z novimi middleware-i:
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(InactivityTimeoutMiddleware)
+app.add_middleware(SessionMiddleware, ...)
+app.add_middleware(ContentSizeLimitMiddleware)
+app.add_middleware(KlubContextMiddleware)       # ← mora postati per-tenant (dynamic DB)
+app.add_middleware(DynamicDBMiddleware)          # ← NOVO: odpre tenant DB sejo
+app.add_middleware(TenantMiddleware)             # ← NOVO: prebere subdomain → tenant_id
+app.add_middleware(ProxyHeadersMiddleware, ...)
+```
+
+### Multi-tenant implikacije posameznih middleware-ov
+
+| Middleware | Sprememba za multi-tenant |
+|---|---|
+| `SecurityHeadersMiddleware` | Brez sprememb – tenant-agnostičen |
+| `InactivityTimeoutMiddleware` | Brez sprememb – deluje per-session |
+| `SessionMiddleware` | Session izolacija per tenant (ločen secret ali cookie domain) |
+| `ContentSizeLimitMiddleware` | `_UPLOAD_PATHS` morajo upoštevati morebitni tenant prefix |
+| `KlubContextMiddleware` | **Kritično:** 60s cache mora postati **per-tenant** (`_cache` dict z `tenant_id` ključem), ker vsak klub ima svoje ime/oznako |
+| `ProxyHeadersMiddleware` | Brez sprememb |
+
+---
+
+## 5. Podatkovni model – multi-tenant implikacije
+
+Od prvotne evaluacije (v1.11) je podatkovni model znatno zrasel. Vse spodnje tabele so **per-tenant** (vsaka baza vsebuje polni nabor tabel).
+
+### Tabele dodane po v1.11
+
+| Model | Od verzije | Alembic | Multi-tenant opomba |
+|---|---|---|---|
+| `LoginPoizkus` | v1.13 | 003 | Per-tenant baza → rate limiting je avtomatsko izoliran per klub |
+| `ClanVloga` | v1.15 | 004 | Per-tenant – vloge članov z zgodovino (datum_od/datum_do) |
+| `EmailPredloga` | v1.17 | 005+007+008 | Per-tenant – vsak klub si prilagodi predloge. Seed 6 privzetih ob kreiranju tenanta |
+| Indeksi (clani, clanarine, aktivnosti) | v1.19 | 006 | Per-tenant – performance indeksi |
+
+### Funkcionalnosti z multi-tenant implikacijo
+
+| Funkcionalnost | Od verzije | Konfiguracija | Multi-tenant implikacija |
+|---|---|---|---|
+| UPN QR koda | v1.16 | `Nastavitev` tabela (IBAN, BIC, namen ...) | Per-tenant – vsak klub ima svoje bančne podatke |
+| Email obvestila | v1.17–v1.20 | SMTP nastavitve v `Nastavitev` | Per-tenant – vsak klub ima svoj SMTP strežnik |
+| Članska kartica | v1.23 | `kartica_polja` v `Nastavitev` | Per-tenant – vsak klub prilagodi polja kartice |
+| AKOS uvoz RD | v1.18, v1.21 | Zunanji API klic | Tenant-agnostičen (API je enak za vse) |
+| Excel izvoz (filtrirani) | v1.21 | — | Per-tenant (izvozi iz tenant baze) |
+| Bulk email filtri | v1.19 | — | Per-tenant (filtrira iz tenant baze) |
+
+### Alembic migracije (001–008)
+
+Vsaka tenant baza mora ob kreiranju preteči vseh 8 migracij:
+
+```
+001_initial_schema.py        – jedro: clani, clanarine, aktivnosti, skupine, uporabniki, nastavitve, audit_log, zaupljive_naprave
+002_zaupljive_naprave.py     – 2FA zaupljive naprave
+003_login_poskusi.py         – persistentni rate limiting (LoginPoizkus)
+004_clan_vloge.py            – vloge članov z zgodovino (ClanVloga)
+005_email_predloge.py        – email predloge (EmailPredloga)
+006_indeksi.py               – performance indeksi (ix_clani_aktiven, ix_clanarine_leto, ix_aktivnosti_leto)
+007_email_predloge_qr.py     – vkljuci_qr stolpec na EmailPredloga
+008_email_predloge_kartica.py – prilozi_kartico stolpec na EmailPredloga
+```
+
+> **Portabilnost:** Ker tenant baza vsebuje celoten podatkovni model vključno z nastavitvami,
+> email predlogami, UPN konfiguracijo in članskimi karticami, je portabilnost **boljša** kot
+> ob prvotni evaluaciji. Klub vzame `.db` in dobi 100% funkcionalnost brez ročne konfiguracije.
+
+---
+
+## 6. Alternativa za večjo skalo (Option C)
 
 Če bi ZRS kdaj prerasla 100 klubov ali potrebovala cross-tenant analitiko, bi bila selitev na PostgreSQL s shemami smiselna.
 
 ### Ključne spremembe pri migraciji SQLite → PostgreSQL
 
 1. **SQLAlchemy dialect**: `sqlite://` → `postgresql://` (večinoma kompatibilno)
-2. **`_migriraj_bazo()`** zamenjati z Alembic migration per shema
+2. **`_run_migrations()`** prilagoditi za Alembic migration per PostgreSQL shema
 3. **`create_schema` pri kreiranju tenanta**: `CREATE SCHEMA s59dgo; SET search_path = s59dgo;`
 4. **Connection string per tenant**: `postgresql://user:pass@host/clanstvo?options=-c search_path=s59dgo`
 5. **Async SQLAlchemy** priporočen pri PostgreSQL za boljšo sočasnost
@@ -319,7 +428,7 @@ UpravljanjeClanstva/
 
 ---
 
-## 5. Super-admin tier
+## 7. Super-admin tier
 
 Super-admin je popolnoma ločen od tenant adminov. Dostopa samo do meta-podatkov (seznam tenantov), nikoli do vsebinskih podatkov kluba.
 
@@ -371,7 +480,7 @@ Z lastno prijavo (ločeni `Uporabnik` zapisi v `super_admin.db`). Session piško
 
 ---
 
-## 6. URL in routing strategija
+## 8. URL in routing strategija
 
 ### Varianta 1: Subdomena per klub (priporočeno)
 
@@ -428,7 +537,7 @@ clanstvo.zrs.si/klubi/s59abc/clani
 
 ---
 
-## 7. Ocena dela po opcijah
+## 9. Ocena dela po opcijah
 
 ### Option A – Več Docker instanc
 
@@ -447,30 +556,38 @@ Ni super-admin vmesnika – vse se dela ročno s skripti ali docker-compose.
 |--------|-------|
 | `TenantMiddleware` + `DynamicDBMiddleware` | 1 teden |
 | Posodobitev `get_db` dependency + testiranje | 3 dni |
+| Alembic programatski API za dynamic tenant engine | 2 dni |
 | Session izolacija per tenant | 3 dni |
 | Super-admin baza + modeli | 3 dni |
 | Super-admin UI (seznam tenantov, kreiranje) | 1 teden |
-| Tenant provisioning (kreiranje mape, DB, prvega admina) | 3 dni |
+| Tenant provisioning (kreiranje mape, DB, migracije, prvega admina, seed predlog) | 4 dni |
 | Nginx wildcard + wildcard certifikat | 2 dni |
-| KlubContextMiddleware posodobitev (per-tenant) | 1 dan |
-| End-to-end testiranje (10+ tenantov) | 1 teden |
+| `KlubContextMiddleware` per-tenant cache | 1 dan |
+| `ContentSizeLimitMiddleware` prilagoditev za tenant poti | 0.5 dneva |
+| SMTP nastavitve per-tenant (email obvestila) | 1 dan |
+| End-to-end testiranje (10+ tenantov, vključno UPN/email/kartica) | 1.5 tedna |
 | Dokumentacija + deployment guide | 3 dni |
-| **Skupaj** | **~6–9 tednov** |
+| **Skupaj** | **~8–11 tednov** |
+
+> **Opomba (posodobljeno 2026-03-31):** Prvotna ocena 6–9 tednov je bila na osnovi v1.11
+> (brez email obvestil, UPN QR, članskih kartic, vloge članov). Funkcionalnosti dodane v
+> v1.13–v1.26 (8 Alembic migracij, 6 email predlog seed, SMTP konfiguracija, kartica_polja)
+> povečajo obseg tenant provisioninga in testiranja.
 
 ### Option C – PostgreSQL sheme
 
 | Naloga | Ocena |
 |--------|-------|
-| Vse iz Option B | 6–9 tednov |
+| Vse iz Option B | 8–11 tednov |
 | SQLite → PostgreSQL migracija | 3 tedni |
 | Alembic setup per shema | 1 teden |
 | Async SQLAlchemy (opcijsko za perf) | 1 teden |
 | PostgreSQL Docker + backup setup | 3 dni |
-| **Skupaj** | **~13–18 tednov** |
+| **Skupaj** | **~15–20 tednov** |
 
 ---
 
-## 8. Varnost in GDPR
+## 10. Varnost in GDPR
 
 ### GDPR implikacije multi-tenant arhitekture
 
@@ -507,11 +624,11 @@ mount /dev/mapper/clanstvo-data /opt/radioklub/data
 2. **Session cookie contamination**: Session za `s59dgo` ne sme biti veljavna za `s59abc`. Zagotovljeno z ločenimi secret_key ali cookie `domain` atributom (`.s59dgo.clanstvo.zrs.si`).
 3. **Path traversal v tenant_id**: `tenant_id` mora biti validiran z allowlist regex (`^[a-z0-9]{3,10}$`) pred uporabo v file path-u.
 4. **Super-admin kompromitacija**: Ker super-admin lahko kreira admin račune, je kompromitacija super-admin računa visoko tvegana. Priporočena obvezna 2FA za super-admin.
-5. **Rate limiting per tenant**: Obstoječ rate limiting `_login_attempts` dict je global. Za multi-tenant ga je treba ločiti: `{tenant_id}:{ip} → [timestamps]`.
+5. **Rate limiting per tenant**: Od v1.13 rate limiting uporablja DB model `LoginPoizkus` (persistenten, Alembic 003). V multi-tenant arhitekturi je izolacija **inherentna** – vsak tenant ima svojo bazo s svojo `login_poskusi` tabelo. Ni potrebna dodatna logika za ločevanje.
 
 ---
 
-## 9. Docker in infrastruktura
+## 11. Docker in infrastruktura
 
 ### Option B: Docker Compose (ena instanca)
 
@@ -531,10 +648,12 @@ services:
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c",
-             "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/login')"]
       interval: 30s
       timeout: 10s
       retries: 3
+      # Opomba: za multi-tenant bo treba preverjati tenant-agnostičen endpoint
+      # (npr. /health ali super-admin /login), ne tenant-specifičnega.
 ```
 
 **Volume struktura:**
@@ -589,7 +708,7 @@ Za primerjavo – Option A pri 50 tenantih bi zahteval ~3–5 GB RAM samo za pro
 
 ---
 
-## 10. Portabilnost – exit strategija
+## 12. Portabilnost – exit strategija
 
 Zahteva je, da klub, ki bi zapustil ZRS centralni sistem (ali bi ZRS ugasnila servis), vzame svoje podatke in zažene lastno instanco.
 
@@ -623,7 +742,7 @@ Manj zanesljivo, zahteva dodatna orodja in testiranje. Portabilnost je oslabljen
 
 ---
 
-## 11. Tveganja in odprta vprašanja
+## 13. Tveganja in odprta vprašanja
 
 ### Tehnična tveganja
 
@@ -658,13 +777,13 @@ Visoka razpoložljivost (active-active cluster) je pri tej skali in naravi aplik
 
 Za 20–100 klubov s kritično GDPR izolacijo in zahtevo po portabilnosti je **Option B (ena instanca, ločene SQLite baze)** optimalna izbira.
 
-**Ocena dela: 6–9 tednov** za izkušenega Python/FastAPI razvijalca, ki pozna obstoječo kodo.
+**Ocena dela: 8–11 tednov** za izkušenega Python/FastAPI razvijalca, ki pozna obstoječo kodo.
 
 Ključna prednost pred Option A je operativna preprostost (en vsebnik, en deployment), pred Option C pa ohranitev SQLite arhitekture in s tem trivialna portabilnost ter manjši obseg dela. Pred Option D jo ločuje fizična podatkovna izolacija, ki je pogoj za GDPR.
 
 ```
 Priporočena pot:
-1. Option B implementacija (6–9 tednov)
+1. Option B implementacija (8–11 tednov)
 2. Wildcard subdomain + Certbot DNS-01 challenge
 3. Super-admin UI (minimalen: kreiranje tenantov, prikaz statusa)
 4. Samodejni backup skript (cron, off-site)

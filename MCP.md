@@ -1,6 +1,6 @@
 # MCP – Analiza implementacije za Upravljanje Članstva
 
-*Datum analize: 2026-03-05 | Aplikacija: v1.19*
+*Datum analize: 2026-03-05 | Posodobljeno: 2026-03-31 (ažurirano za v1.26) | Aplikacija: v1.26*
 
 ---
 
@@ -80,7 +80,23 @@ Aplikacija za upravljanje članstva radiokluba hrani strukturirane podatke (čla
 → MCP tool → CSV vsebina v odgovoru
 ```
 
-### 3.3 Sprožanje akcij
+### 3.3 Vloge in članske kartice *(novo v1.15–v1.23)*
+
+```
+"Kdo je trenutni predsednik kluba?"
+→ MCP tool: vloge_clanov(naziv="Predsednik", aktivne=true)
+→ Odgovor: ime, priimek, datum_od
+
+"Generiraj člansko kartico za S59ABC za leto 2026."
+→ MCP tool: generiraj_kartico(clan_id=17, leto=2026)
+→ Odgovor: PDF bytes (85.6×54 mm kartica)
+
+"Pošlji člansko kartico Janezu Novaku za 2026."
+→ MCP tool: posli_kartico(clan_id=42, leto=2026)
+→ Potrditev: "Kartica poslana na janez@example.com"
+```
+
+### 3.4 Sprožanje akcij
 
 ```
 "Pošlji UPN QR poziv k plačilu vsem neplačnikom za 2026."
@@ -102,24 +118,33 @@ Aplikacija za upravljanje članstva radiokluba hrani strukturirane podatke (čla
 |-----|------|
 | `clanstvo://clani` | Seznam vseh aktivnih članov (ime, priimek, klicni_znak, tip) |
 | `clanstvo://clani/{id}` | Celotna kartica posameznega člana |
+| `clanstvo://clani/{id}/vloge` | Vloge člana z zgodovino (datum_od, datum_do) *(v1.15+)* |
 | `clanstvo://clanarine/{leto}` | Plačila za izbrano leto |
 | `clanstvo://aktivnosti/{leto}` | Aktivnosti za izbrano leto |
 | `clanstvo://dashboard` | Statistični povzetek (aktivni, plačali, neplačali, delovne ure) |
-| `clanstvo://email-predloge` | Razpoložljive e-poštne predloge |
-| `clanstvo://nastavitve` | Javne nastavitve kluba (ime, oznaka, tipi) |
+| `clanstvo://email-predloge` | Razpoložljive e-poštne predloge (6 privzetih, vključno QR in kartica) |
+| `clanstvo://nastavitve` | Javne nastavitve kluba (ime, oznaka, tipi, UPN podatki, kartica_polja) |
 
 ### 4.2 Tools (dejanja)
 
-| Tool | Parametri | Opis |
-|------|-----------|------|
-| `isci_clane` | `q: str`, `aktiven: bool?` | Iskanje po imenu, priimku, klicnem znaku |
-| `filtriraj_neplacnike` | `leto: int` | Vrne seznam neplačnikov z e-pošto |
-| `filtriraj_rd_potece` | `v_dneh: int` | Člani s potečeno ali skoraj potečeno RD |
-| `statistika_leto` | `leto: int` | Plačila in aktivnosti za leto |
-| `dodaj_clanarina` | `clan_id, leto, znesek, datum?` | Zabeleži plačilo (upsert) |
-| `dodaj_aktivnost` | `clan_id, leto, opis, ure?` | Zabeleži aktivnost |
-| `posodobi_clan` | `id, **polja` | Posodobi podatke člana |
-| `posli_obvestilo` | `predloga_id, leto, clan_id?/bulk_filter?` | Pošlji e-pošto |
+| Tool | Parametri | Opis | Faza |
+|------|-----------|------|------|
+| `isci_clane` | `q: str`, `aktiven: bool?` | Iskanje po imenu, priimku, klicnem znaku | 1 (branje) |
+| `filtriraj_neplacnike` | `leto: int` | Vrne seznam neplačnikov z e-pošto | 1 (branje) |
+| `filtriraj_placnike` | `leto: int` | Vrne seznam plačnikov za leto *(v1.23+)* | 1 (branje) |
+| `filtriraj_rd_potece` | `v_dneh: int` | Člani s potečeno ali skoraj potečeno RD (privzeto 180 dni) | 1 (branje) |
+| `vloge_clanov` | `naziv: str?`, `aktivne: bool?` | Vloge članov, opcijsko filtrirane po nazivu *(v1.15+)* | 1 (branje) |
+| `statistika_leto` | `leto: int` | Plačila in aktivnosti za leto (agregatne poizvedbe) | 1 (branje) |
+| `dodaj_clanarina` | `clan_id, leto, znesek, datum?` | Zabeleži plačilo (upsert) | 2 (pisanje) |
+| `dodaj_aktivnost` | `clan_id, leto, opis, ure?` | Zabeleži aktivnost | 2 (pisanje) |
+| `posodobi_clan` | `id, **polja` | Posodobi podatke člana | 2 (pisanje) |
+| `posli_obvestilo` | `predloga_id, leto, clan_id?/bulk_filter?` | Pošlji e-pošto (bulk filtri: neplacniki, placniki, rd_potekla, rd_kmalu, vsi_aktivni, vsi) | 2 (pisanje) |
+| `generiraj_kartico` | `clan_id: int, leto: int` | Generira PDF člansko kartico (85.6×54 mm) *(v1.23+)* | 2 (pisanje) |
+| `posli_kartico` | `clan_id: int, leto: int` | Pošlje PDF kartico na email člana *(v1.23+)* | 2 (pisanje) |
+
+> **Opomba:** Od v1.24 obstaja JSON endpoint `GET /clani/iskanje?q=...` (autocomplete),
+> ki je de facto prvi API-like endpoint v aplikaciji. Vrača `[{id, priimek, ime, klicni_znak, elektronska_posta, aktiven}]`.
+> Ta vzorec je neposredno uporaben za MCP tool `isci_clane`.
 
 ### 4.3 Prompts
 
@@ -295,13 +320,17 @@ SQLite pri privzetem `DELETE` journal načinu podpira vzporedne bralce. Pri `WAL
 
 MCP strežnik bi moral replicirati nekatere poizvedbe (npr. neplačniki = `NOT IN subquery clanarine`). To ustvari dve mesti za vzdrževanje. **Rešitev:** skupna `app/queries.py` datoteka s shared query funkcijami, ki jo uporabljata tako FastAPI router kot MCP strežnik.
 
+Od v1.25 dashboard uporablja **agregatne SQL poizvedbe** (2 poizvedbi namesto 20, z `GROUP BY` in `func.sum/func.count`). Te poizvedbe so idealne za izločitev v `app/queries.py` in neposredno uporabo v MCP tool `statistika_leto`.
+
 ### 8.3 Odvisnost od running aplikacije (Faza 2)
 
 HTTP klici na `/api/v1/` zahtevajo, da FastAPI strežnik teče. Za lokalni MCP (stdio) je to OK – aplikacija vseeno teče. Za **offline scenarije** (tajnik kliče Claude, aplikacija je ugasnjena) Faza 2 ne deluje; Faza 1 (neposreden DB) deluje.
 
 ### 8.4 Sinhronizacija sheme
 
-Ob vsaki spremembi podatkovnega modela (nova tabela, novo polje) je treba posodobiti tudi MCP strežnik. **Rešitev:** MCP strežnik uvozi modele iz `app/models.py` – isti SQLAlchemy razredi.
+Ob vsaki spremembi podatkovnega modela (nova tabela, novo polje) je treba posodobiti tudi MCP strežnik. Od v1.19 so bile dodane 3 nove Alembic migracije (006 indeksi, 007 vkljuci_qr, 008 prilozi_kartico) — skupaj je zdaj **8 migracij**. Modeli vključujejo: `Clan`, `Clanarina`, `Aktivnost`, `Skupina`, `Uporabnik`, `Nastavitev`, `AuditLog`, `ZaupljivaNaprava`, `LoginPoizkus`, `ClanVloga`, `EmailPredloga`.
+
+**Rešitev:** MCP strežnik uvozi modele iz `app/models.py` – isti SQLAlchemy razredi. Ker MCP Faza 1 ne poganja migracij (read-only), mora aplikacija teči vsaj enkrat pred MCP uporabo, da se baza posodobi.
 
 ### 8.5 Namestitvena zapletenost za končnega uporabnika
 
@@ -313,31 +342,34 @@ Claude Desktop zahteva konfiguracijo `claude_desktop_config.json` z absolutno po
 
 ### Faza 1: Bralni MCP strežnik
 
-**Cilj:** Claude Desktop lahko odgovarja na vprašanja o członih, plačilih in statistiki.
+**Cilj:** Claude Desktop lahko odgovarja na vprašanja o članih, plačilih, vlogah in statistiki.
 
 **Datoteke:**
 - `mcp_server.py` – MCP strežnik (stdio, Python `mcp` SDK)
-- `app/queries.py` – shared poizvedbe (izločene iz routerjev)
+- `app/queries.py` – shared poizvedbe (izločene iz routerjev, vključno dashboard agregatne)
 - `mcp_requirements.txt` – odvisnosti za MCP (`mcp`, `sqlalchemy`)
 - `docs/mcp_namestitev.md` – navodila za Claude Desktop
 
 **Resources:**
 - `clanstvo://clani` – seznam aktivnih članov
-- `clanstvo://clani/{id}` – kartica člana
-- `clanstvo://dashboard/{leto}` – statistika za leto
+- `clanstvo://clani/{id}` – kartica člana (vključno vloge, če obstajajo)
+- `clanstvo://dashboard/{leto}` – statistika za leto (agregatne poizvedbe iz v1.25)
+- `clanstvo://email-predloge` – razpoložljive predloge (6 privzetih)
 
 **Tools (samo branje):**
-- `isci_clane(q)` – iskanje
+- `isci_clane(q)` – iskanje (vzorec iz obstoječega `GET /clani/iskanje` JSON endpointa)
 - `neplacniki(leto)` – neplačniki za leto
-- `rd_stanje(v_dneh?)` – veljavnosti RD
+- `placniki(leto)` – plačniki za leto *(v1.23+)*
+- `rd_stanje(v_dneh?)` – veljavnosti RD (privzeto 180 dni)
+- `vloge_clanov(naziv?, aktivne?)` – vloge članov *(v1.15+)*
 
-**Ocena dela:** 2–3 dni
+**Ocena dela:** 3–4 dni (več primitiv zaradi vloge in razširjenih filtrov)
 
 ---
 
 ### Faza 2: Pisalni API endpointi + MCP tools
 
-**Cilj:** AI lahko sproži vnos plačila, pošlje obvestilo, posodobi podatke člana.
+**Cilj:** AI lahko sproži vnos plačila, pošlje obvestilo, generira/pošlje kartico, posodobi podatke člana.
 
 **Datoteke:**
 - `app/routers/api_v1.py` – novi `/api/v1/` endpointi z API ključ auth
@@ -348,11 +380,13 @@ Claude Desktop zahteva konfiguracijo `claude_desktop_config.json` z absolutno po
 - `POST /api/v1/clanarine` – dodaj plačilo
 - `POST /api/v1/aktivnosti` – dodaj aktivnost
 - `PATCH /api/v1/clani/{id}` – posodobi podatke
-- `POST /api/v1/obvestila/posli` – pošlji obvestilo
+- `POST /api/v1/obvestila/posli` – pošlji obvestilo (bulk filtri: neplacniki, placniki, rd_potekla, rd_kmalu, vsi_aktivni, vsi)
+- `GET /api/v1/clani/{id}/kartica/{leto}` – generiraj PDF člansko kartico *(v1.23+)*
+- `POST /api/v1/clani/{id}/posli-kartico` – pošlji kartico na email *(v1.23+)*
 
 **Audit log:** vse API akcije zabeležene kot `api_mcp` uporabnik + IP
 
-**Ocena dela:** 3–5 dni
+**Ocena dela:** 4–6 dni (več endpointov zaradi kartic in razširjenih bulk filtrov)
 
 ---
 
@@ -373,8 +407,8 @@ Claude Desktop zahteva konfiguracijo `claude_desktop_config.json` z absolutno po
 
 | Faza | Obseg | Vrednost | Priporočilo |
 |------|-------|----------|-------------|
-| Faza 1 – bralni MCP | 2–3 dni | Visoka (poizvedbe, poročila) | **Implementirati** |
-| Faza 2 – pisalni API + MCP | 3–5 dni | Visoka (vnos, pošiljanje) | Implementirati po Fazi 1 |
+| Faza 1 – bralni MCP | 3–4 dni | Visoka (poizvedbe, poročila, vloge) | **Implementirati** |
+| Faza 2 – pisalni API + MCP | 4–6 dni | Visoka (vnos, pošiljanje, kartice) | Implementirati po Fazi 1 |
 | Faza 3 – HTTP transport | 5–7 dni | Nizka (klub = lokalna VPN raba) | Odložiti |
 
 ---
@@ -387,9 +421,9 @@ MCP integracija ima za to aplikacijo **visoko praktično vrednost** – večina 
 
 1. **stdio transport** je primeren za radioklubski scenarij (lokalna/VPN raba, Claude Desktop na računalniku tajnika).
 
-2. **Faza 1 (branje)** je optimalen naslednji korak: 2–3 dni dela, nič tveganja, takojtšnja vrednost za poizvedbe in poročila.
+2. **Faza 1 (branje)** je optimalen naslednji korak: 3–4 dni dela, nič tveganja, takojšnja vrednost za poizvedbe, poročila in pregled vloge.
 
-3. **Faza 2 (pisanje)** zahteva dodajanje API endpointov – arhitekturno čisto, a zahteva skrb za audit log in varnost.
+3. **Faza 2 (pisanje)** zahteva dodajanje API endpointov – arhitekturno čisto, a zahteva skrb za audit log in varnost. Od v1.23 vključuje tudi generiranje in pošiljanje članskih kartic.
 
 4. **Faza 3 (HTTP)** je nesorazmerno zahtevna glede na predvideno lokalno rabo – odložiti.
 
@@ -397,4 +431,4 @@ MCP integracija ima za to aplikacijo **visoko praktično vrednost** – večina 
 
 ---
 
-*Radio klub S59DGO – MCP analiza, 2026-03-05*
+*Radio klub S59DGO – MCP analiza, 2026-03-05 (posodobljeno 2026-03-31 za v1.26)*
