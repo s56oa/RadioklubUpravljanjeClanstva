@@ -1,7 +1,7 @@
 # Radio klub Člani – Upravljanje Članstva
 
 Spletna aplikacija za upravljanje podatkov o članstvu radiokluba.
-Deluje v brskalniku, gostuje na Synology NAS, Linux strežniku ali Raspberry Pi z Docker.
+Deluje v brskalniku, gostuje na Windows, Linux, Mac, Synology NAS ali Raspberry Pi z Docker.
 
 ![Docker Image](https://github.com/s56oa/RadioklubUpravljanjeClanstva/actions/workflows/docker-publish.yml/badge.svg)
 
@@ -12,6 +12,8 @@ Deluje v brskalniku, gostuje na Synology NAS, Linux strežniku ali Raspberry Pi 
 Ne potrebujete klonirati repozitorija. Dovolj sta **dve datoteki**.
 
 ### 1. Prenesite konfiguracijski datoteki
+
+**Linux / macOS / Windows (PowerShell):**
 
 ```bash
 mkdir radioklub-clanstvo && cd radioklub-clanstvo
@@ -34,9 +36,16 @@ OKOLJE=produkcija
 ```
 
 ```bash
+# Linux / macOS:
 mkdir -p data && chmod 777 data
+
+# Windows (PowerShell):
+mkdir data
+
 docker compose up -d
 ```
+
+> **Windows:** Na Windows `chmod` ni potreben — Docker Desktop z WSL2 samodejno nastavi ustrezne pravice.
 
 Aplikacija je dostopna na: **http://localhost:8000**
 
@@ -81,6 +90,7 @@ Vsi uporabniki lahko prek **Moj profil** aktivirajo opcijsko **dvostopenjsko avt
 
 ## Podprte platforme
 
+- **Windows 10/11** (Docker Desktop z WSL2)
 - Linux x64 (Ubuntu, Debian, …)
 - Raspberry Pi 3B+ / 4 / 5 (ARM64)
 - Mac z Apple Silicon (M1/M2/M3)

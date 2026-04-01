@@ -13,6 +13,7 @@
    - [Raspberry Pi (ARM64)](#32-raspberry-pi-arm64)
    - [Mac z Apple Silicon (ARM)](#33-mac-z-apple-silicon-arm)
    - [Synology NAS Intel](#34-synology-nas-intel)
+   - [Windows 10/11 (Docker Desktop)](#35-windows-1011-docker-desktop)
 4. [Konfiguracija (.env)](#4-konfiguracija-env)
 5. [HTTPS z Nginx reverse proxy](#5-https-z-nginx-reverse-proxy)
 6. [Vzdrževanje](#6-vzdrževanje)
@@ -119,6 +120,7 @@ UpravljanjeClanstva/
 
 | Platforma | Minimalne zahteve |
 |-----------|-------------------|
+| **Windows 10/11** | Docker Desktop 4.x z WSL2, 4 GB RAM (priporočeno 8 GB) |
 | Linux x64 | Docker Engine 24+, Docker Compose v2, 512 MB RAM |
 | Raspberry Pi | Pi 3B+ ali novejši (ARM64), Docker Engine 24+, 512 MB RAM |
 | Mac ARM | Docker Desktop 4.x (Apple Silicon) |
@@ -374,6 +376,74 @@ Za dostop prek `https://clanstvo.vasadomena.si` ali `https://NAS:443/clanstvo`:
 4. Za HTTPS certifikat: **Control Panel → Security → Certificate** → ustvarite Let's Encrypt certifikat za vašo domeno.
 
 > **Opomba za Synology QuickConnect:** QuickConnect ne podpira posredovanja za aplikacije na netandardnih portih. Priporočamo Synology DDNS + Let's Encrypt + Reverse Proxy.
+
+---
+
+### 3.5 Windows 10/11 (Docker Desktop)
+
+Docker Desktop za Windows poganja Linux vsebnike prek WSL2 (Windows Subsystem for Linux 2). Ker je Docker image zgrajen za linux/amd64, deluje na Windows brez prilagoditev.
+
+#### Predpogoj: Docker Desktop z WSL2
+
+1. **Namestite WSL2** (če še ni):
+   - Odprite **PowerShell kot administrator** in zaženite:
+     ```powershell
+     wsl --install
+     ```
+   - Po ponovnem zagonu računalnika se WSL2 z Ubuntu nastavi samodejno.
+
+2. **Namestite Docker Desktop** z uradne strani Docker:
+   - Prenesite **Docker Desktop for Windows** in zaženite namestitveni program.
+   - Med namestitvijo zagotovite, da je izbrana opcija **Use WSL 2 instead of Hyper-V**.
+   - Po namestitvi zaženite Docker Desktop (ikona v sistemski vrstici).
+
+3. **Preverite namestitev** (v PowerShell ali Command Prompt):
+   ```powershell
+   docker --version
+   docker compose version
+   ```
+
+#### Zagon aplikacije
+
+Odprite **PowerShell** ali **Windows Terminal**:
+
+```powershell
+# Ustvarite mapo za aplikacijo
+mkdir C:\radioklub-clanstvo
+cd C:\radioklub-clanstvo
+
+# Prenesite konfiguracijski datoteki
+curl -fsSL https://raw.githubusercontent.com/s56oa/RadioklubUpravljanjeClanstva/main/docker-compose.yml -o docker-compose.yml
+curl -fsSL https://raw.githubusercontent.com/s56oa/RadioklubUpravljanjeClanstva/main/.env.example -o .env
+
+# Uredite .env (obvezno SECRET_KEY in ADMIN_GESLO)
+notepad .env
+
+# Ustvarite mapo za bazo podatkov
+mkdir data
+
+# Zaženite (image se samodejno prenese iz GHCR)
+docker compose up -d
+
+# Preverite status
+docker compose ps
+docker compose logs -f
+```
+
+Aplikacija je dostopna na `http://localhost:8000`.
+
+> **Opomba:** Na Windows `chmod 777 data` **ni potreben** in ga ne izvajajte. Docker Desktop z WSL2 samodejno nastavi ustrezne pravice za bind mount volumne.
+
+#### Samodejni zagon
+
+Docker Desktop ima nastavitev **Settings → General → Start Docker Desktop when you sign in to your computer**. Vsebniki z `restart: unless-stopped` se zaženejo samodejno ob zagonu Docker Desktop.
+
+#### Posebnosti za Windows
+
+- **Pot do data mape:** `docker-compose.yml` uporablja relativno pot `./data:/app/data`. Na Windows se `./data` preslika v podmapa trenutnega direktorija (npr. `C:\radioklub-clanstvo\data`).
+- **Firewall:** Windows Defender Firewall lahko vpraša za dovoljenje ob prvem zagonu Docker Desktop. Dovolite dostop za zasebna omrežja.
+- **Backup baze:** Baza je v `data\clanstvo.db` — za backup prekopirajte to datoteko. Priporočamo, da backup naredite ko je vsebnik ustavljen (`docker compose stop`), ali pa uporabite funkcijo **Izvoz** v aplikaciji.
+- **Posodobitev:** Enako kot na drugih platformah: `docker compose pull && docker compose up -d`.
 
 ---
 
@@ -900,11 +970,12 @@ Ključne nastavitve workflowa:
 
 Za razvoj in testiranje:
 
+**Linux / macOS:**
+
 ```bash
 # Ustvari virtualno okolje
 python3 -m venv venv
-source venv/bin/activate   # Linux/Mac
-# ali: venv\Scripts\activate  (Windows)
+source venv/bin/activate
 
 # Namesti odvisnosti
 pip install -r requirements.txt
@@ -917,6 +988,27 @@ export ADMIN_GESLO="DevGeslo123!"
 # Zaženi razvojni strežnik
 python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
+
+**Windows (PowerShell):**
+
+```powershell
+# Ustvari virtualno okolje
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+
+# Namesti odvisnosti
+pip install -r requirements.txt
+pip install -r requirements-dev.txt   # za teste
+
+# Nastavi spremenljivki okolja
+$env:SECRET_KEY = "dev-kljuc-samo-za-razvoj"
+$env:ADMIN_GESLO = "DevGeslo123!"
+
+# Zaženi razvojni strežnik
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+```
+
+> **Windows opomba:** Če PowerShell zavrne `Activate.ps1` zaradi execution policy, zaženite najprej: `Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser`.
 
 Aplikacija je dostopna na `http://localhost:8000`. Zastavica `--reload` samodejno znova naloži kodo ob vsaki spremembi datoteke.
 
