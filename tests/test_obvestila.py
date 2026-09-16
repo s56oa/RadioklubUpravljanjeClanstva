@@ -219,7 +219,8 @@ def test_posli_posamezniku(client, db):
             follow_redirects=True,
         )
     assert resp.status_code == 200
-    assert "1" in resp.text  # poslano = 1
+    assert mock_smtp.send_message.call_count == 1
+    assert ">1<" in resp.text  # poslano = 1
 
 
 def test_posli_bulk(client, db):
@@ -252,8 +253,9 @@ def test_posli_bulk(client, db):
         )
     assert resp.status_code == 200
     # 3 poslani, 1 preskočen (brez emaila)
-    assert "3" in resp.text
-    assert "1" in resp.text
+    assert mock_smtp.send_message.call_count == 3
+    assert ">3<" in resp.text
+    assert ">1<" in resp.text
 
 
 def test_posli_bulk_rd_potekla(client, db):
@@ -297,7 +299,7 @@ def test_posli_bulk_rd_potekla(client, db):
         )
     assert resp.status_code == 200
     # Samo 1 poslan (c_potek), ostala 2 nimata potečene RD
-    assert "1" in resp.text
+    assert mock_smtp.send_message.call_count == 1
 
 
 def test_posli_bulk_vsi_aktivni(client, db):

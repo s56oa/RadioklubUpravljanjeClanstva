@@ -13,6 +13,8 @@ from jinja2.sandbox import SandboxedEnvironment
 from sqlalchemy.orm import Session
 
 from .config import get_nastavitev, get_clanarina_zneski
+
+_SMTP_TIMEOUT = 30  # sekund – brez timeouta nedosegljiv SMTP strežnik blokira celotno aplikacijo
 from .models import Clan
 from .upn import generiraj_upn_png
 
@@ -181,17 +183,17 @@ def posli_email(
     geslo = smtp_nastavitve["geslo"]
 
     if nacin == "ssl":
-        with smtplib.SMTP_SSL(host, port) as server:
+        with smtplib.SMTP_SSL(host, port, timeout=_SMTP_TIMEOUT) as server:
             if uporabnik:
                 server.login(uporabnik, geslo)
             server.send_message(send_msg)
     elif nacin == "plain":
-        with smtplib.SMTP(host, port) as server:
+        with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT) as server:
             if uporabnik:
                 server.login(uporabnik, geslo)
             server.send_message(send_msg)
     else:  # starttls (privzeto)
-        with smtplib.SMTP(host, port) as server:
+        with smtplib.SMTP(host, port, timeout=_SMTP_TIMEOUT) as server:
             server.ehlo()
             server.starttls()
             server.ehlo()

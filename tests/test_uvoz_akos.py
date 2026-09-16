@@ -102,7 +102,7 @@ def test_uvozi_akos_brez_ujemanja(client, db):
     # Clan ni v posdobljeni sekciji – S59XXX ne obstaja v AKOS
     assert "S59XXX" not in resp.text
     # Sporoči število brez ujemanja
-    assert "1" in resp.text  # brez_ujemanja == 1
+    assert "<strong>1</strong> članov s klicnim znakom ni v AKOS datoteki" in resp.text
 
 
 def test_uvozi_akos_napacna_datoteka(client, db):

@@ -1,7 +1,7 @@
 # CLAUDE.md – Radio klub Upravljanje Članstva
 
 Spletna aplikacija za upravljanje članstva radijskega kluba.
-Trenutna različica: **v1.28** (produkcijsko stabilna)
+Trenutna različica: **v1.29** (produkcijsko stabilna)
 
 ## Lokalni zagon
 
@@ -14,7 +14,7 @@ python3 -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 
 ```bash
 python3 -m pytest tests/ -v
-# Pričakovano: 159 testov, 0 napak
+# Pričakovano: 205 testov, 0 napak
 ```
 
 ## Arhitektura
@@ -22,7 +22,8 @@ python3 -m pytest tests/ -v
 - **Backend:** FastAPI + Jinja2 (SSR), Python 3.12
 - **Baza:** SQLite (`data/clanstvo.db`), SQLAlchemy ORM, Alembic migracije
 - **Frontend:** Bootstrap 5.3 + DataTables + Bootstrap Icons (CDN), Chart.js (dashboard)
-- **Auth:** SessionMiddleware + bcrypt + pyotp (TOTP 2FA)
+- **Auth:** SessionMiddleware + bcrypt + pyotp (TOTP 2FA); `UserValidationMiddleware` vsako zahtevo preveri uporabnika proti bazi
+- **CSP:** `SecurityHeadersMiddleware` doda `Content-Security-Policy` z nonce-om; SQLite `PRAGMA foreign_keys=ON` (od v1.29)
 
 Migracije tečejo samodejno ob zagonu prek `_run_migrations()` v lifespan handlerju.
 
@@ -57,7 +58,15 @@ async def handler(..., _=Depends(csrf_protect)):
 ```
 V templatu: `{{ csrf_token(request) }}`
 
-### 6. Session flash (enkratni prikaz)
+### 6. Inline JavaScript – CSP nonce, brez on*="" atributov
+```html
+<script nonce="{{ request.state.csp_nonce }}">…</script>      <!-- pravilno -->
+<form data-confirm="Izbriši {{ x }}?">                          <!-- pravilno: globalni handler v base.html -->
+<form onsubmit="return confirm('Izbriši {{ x }}?')">            <!-- NAPAKA: CSP blokira + XSS v JS kontekstu -->
+```
+Vsi CDN `<script>`/`<link>` morajo imeti `integrity="sha384-…" crossorigin="anonymous"`.
+
+### 7. Session flash (enkratni prikaz)
 ```python
 request.session["kljuc"] = vrednost          # POST handler
 vrednost = request.session.pop("kljuc", None) # GET handler
@@ -69,7 +78,7 @@ vrednost = request.session.pop("kljuc", None) # GET handler
 
 ## Varnost
 
-- Pred zagonom nastavi `SECRET_KEY` in `ADMIN_GESLO` v `.env`
+- Pred zagonom nastavi `SECRET_KEY` in `ADMIN_GESLO` v `.env` – v `OKOLJE=produkcija` se aplikacija s privzetimi vrednostmi NE zažene
 - Pregled ranljivosti: `Varnost.md`
 - HTTPS se nastavi na reverse proxy-u (Synology / Nginx) – kode ni treba spreminjati
 

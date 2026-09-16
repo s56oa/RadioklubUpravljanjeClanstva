@@ -3,7 +3,10 @@ import io
 import json
 import os
 import re
+import sqlite3
+import tempfile
 import uuid as uuid_lib
+from urllib.parse import quote
 import xml.etree.ElementTree as ET
 from datetime import date, datetime, timedelta
 from typing import List
@@ -17,7 +20,7 @@ from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 from openpyxl.utils import get_column_letter
 
-from ..database import get_db
+from ..database import get_db, sqlite_pot
 from ..models import Clan, Clanarina, Aktivnost, Nastavitev, ClanVloga
 from ..auth import require_login, is_admin, is_editor
 from ..config import get_nastavitev, get_tipi_clanstva, get_operaterski_razredi
@@ -31,6 +34,11 @@ templates.env.globals["csrf_token"] = get_csrf_token
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 DOVOLJENE_PRIPONE = {".xlsx"}
 TMP_DIR = "data/tmp"
+
+
+def _ascii_ime(vrednost: str) -> str:
+    """Sanitizira niz za uporabo v Content-Disposition (samo ASCII alfanumerični znaki in -)."""
+    return re.sub(r"[^A-Za-z0-9\-]", "_", vrednost or "")
 
 # ---------------------------------------------------------------------------
 # ZRS izvoz – konfigurabilni stolpci, mapiranja, transformacije
@@ -596,12 +604,14 @@ async def izvoz_stran(request: Request, db: Session = Depends(get_db)) -> Respon
 @router.get("/zrs")
 async def izvoz_zrs(
     request: Request,
-    leto: int = date.today().year,
+    leto: int = 0,
     db: Session = Depends(get_db),
 ) -> Response:
     user, redirect = require_login(request)
     if redirect:
         return redirect
+    if not leto:
+        leto = date.today().year
 
     config = _get_zrs_config(db)
 
@@ -670,7 +680,7 @@ async def izvoz_zrs(
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    filename = f"prijava_clanov_{leto}_{klub_oznaka}.xlsx"
+    filename = f"prijava_clanov_{leto}_{_ascii_ime(klub_oznaka)}.xlsx"
     ip = request.client.host if request.client else None
     log_akcija(db, user.get("uporabnisko_ime") if user else None, "izvoz_zrs",
                f"Leto {leto}", ip=ip)
@@ -731,6 +741,8 @@ async def zrs_nastavitve_shrani(
     else:
         db.add(Nastavitev(kljuc=ZRS_CONFIG_KEY, vrednost=raw, opis="Konfiguracija ZRS izvoza (JSON)"))
     db.commit()
+    log_akcija(db, user.get("uporabnisko_ime"), "zrs_nastavitve_urejene",
+               ip=request.client.host if request.client else None)
 
     return RedirectResponse(url="/izvoz?zrs_shranjeno=1", status_code=302)
 
@@ -950,17 +962,31 @@ async def backup_db(request: Request, db: Session = Depends(get_db)) -> Response
     if not is_admin(user):
         return RedirectResponse(url="/izvoz", status_code=302)
 
-    db_path = "data/clanstvo.db"
-    if not os.path.exists(db_path):
+    db_path = sqlite_pot()
+    if not db_path or not os.path.exists(db_path):
         return RedirectResponse(url="/izvoz", status_code=302)
+
+    # Konsistenten posnetek prek SQLite Online Backup API (varno tudi med pisanjem / WAL)
+    tmp = tempfile.NamedTemporaryFile(prefix="backup_", suffix=".db", delete=False)
+    tmp.close()
+    src = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+    dst = sqlite3.connect(tmp.name)
+    try:
+        src.backup(dst)
+    finally:
+        dst.close()
+        src.close()
 
     today = date.today().isoformat()
     ip = request.client.host if request.client else None
     log_akcija(db, user.get("uporabnisko_ime") if user else None, "izvoz_backup_db", ip=ip)
 
     def iter_file():
-        with open(db_path, "rb") as f:
-            yield from f
+        try:
+            with open(tmp.name, "rb") as f:
+                yield from f
+        finally:
+            os.remove(tmp.name)
 
     return StreamingResponse(
         iter_file(),
@@ -1031,6 +1057,8 @@ async def uvozi_nastavitve_shrani(
         else:
             db.add(Nastavitev(kljuc=kljuc, vrednost=vrednost))
     db.commit()
+    log_akcija(db, user.get("uporabnisko_ime"), "uvoz_nastavitve_urejene",
+               ip=request.client.host if request.client else None)
     return RedirectResponse(url="/izvoz/uvozi?uvoz_shranjeno=1", status_code=302)
 
 
@@ -1316,7 +1344,7 @@ async def _fetch_akos_all(klicni_znaki: list[str]) -> dict[str, date | None]:
     async def fetch_one(client: httpx.AsyncClient, kz: str) -> tuple[str, date | None]:
         async with sem:
             try:
-                r = await client.get(f"{AKOS_BASE}{kz}", timeout=TIMEOUT)
+                r = await client.get(f"{AKOS_BASE}{quote(kz, safe='')}", timeout=TIMEOUT)
                 return kz, _parse_akos_xml(r.text)
             except Exception:
                 return kz, None
@@ -1731,4 +1759,6 @@ async def uvozi_placila_nastavitve_shrani(
         else:
             db.add(Nastavitev(kljuc=kljuc, vrednost=vrednost))
     db.commit()
+    log_akcija(db, user.get("uporabnisko_ime"), "uvoz_placila_nastavitve_urejene",
+               ip=request.client.host if request.client else None)
     return RedirectResponse(url="/izvoz/uvozi?placila_shranjeno=1", status_code=302)

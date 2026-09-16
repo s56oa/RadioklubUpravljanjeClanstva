@@ -11,7 +11,6 @@ from datetime import datetime, timezone, timedelta
 from alembic.config import Config as AlembicConfig
 from alembic import command as alembic_command
 
-import pyotp
 from fastapi import FastAPI, Request, Form, Depends
 from sqlalchemy.orm import Session
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
@@ -24,7 +23,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from sqlalchemy import inspect as sa_inspect
 from .database import engine, SessionLocal, get_db
 from .models import Base, Uporabnik, Nastavitev, ZaupljivaNaprava, LoginPoizkus, TIPI_CLANSTVA_PRIVZETO, OPERATERSKI_RAZREDI_PRIVZETO, VLOGE_CLANOV_PRIVZETO
-from .auth import hash_geslo, preveri_geslo
+from .auth import hash_geslo, preveri_geslo, preveri_totp, DUMMY_GESLO_HASH
 from .csrf import get_csrf_token, csrf_protect
 from .audit_log import log_akcija
 from .rate_limit import check_rate_limit, record_failed_attempt
@@ -37,8 +36,8 @@ logger = logging.getLogger(__name__)
 # Varnostne nastavitve
 # ---------------------------------------------------------------------------
 
-APP_VERSION = "1.28"
-APP_RELEASE_DATE = "2026-05-08"
+APP_VERSION = "1.29"
+APP_RELEASE_DATE = "2026-09-17"
 
 # Preberi LICENSE ob zagonu (enkrat, ne ob vsaki zahtevi)
 try:
@@ -75,21 +74,96 @@ PRIVZETE_NASTAVITVE = {
 
 _INACTIVITY_SECONDS = 30 * 60  # iztok seje ob neaktivnosti (30 min)
 _MAX_BODY_BYTES = 1 * 1024 * 1024  # max velikost normalnega POST zahtevka (1 MB)
+_MAX_USERNAME_LEN = 150  # omejitev dolžine uporabniškega imena pri prijavi (audit log, rate limit)
+
+_PRIVZETI_SECRET_KEY = "radikoklub-dev-key-ZAMENJAJTE-v-produkciji"
+_ZNANI_PRIVZETI_KLJUCI = {_PRIVZETI_SECRET_KEY, "zamenjajte-z-dolgim-nakljucnim-nizom"}
+_ZNANA_PRIVZETA_GESLA = {"admin123", "zamenjajte-z-varnim-geslom"}
+
+
+def preveri_produkcijske_nastavitve(okolje: str, secret_key: str, admin_geslo: str,
+                                    admin_bo_ustvarjen: bool) -> None:
+    """V produkciji zavrne zagon s privzetim/šibkim SECRET_KEY ali privzetim ADMIN_GESLO.
+
+    Vrže RuntimeError z navodilom. V razvojnem okolju ne preverja ničesar.
+    """
+    if okolje != "produkcija":
+        return
+    if secret_key in _ZNANI_PRIVZETI_KLJUCI or len(secret_key) < 32:
+        raise RuntimeError(
+            "SECRET_KEY ni nastavljen ali je prekratek (min. 32 znakov). Generirajte ga z: "
+            "python3 -c \"import secrets; print(secrets.token_urlsafe(32))\" in ga nastavite v .env"
+        )
+    if admin_bo_ustvarjen and admin_geslo in _ZNANA_PRIVZETA_GESLA:
+        raise RuntimeError(
+            "ADMIN_GESLO ima privzeto vrednost. Pred prvim zagonom v produkciji nastavite varno geslo v .env"
+        )
 
 
 # ---------------------------------------------------------------------------
 # Varnostni headers middleware
 # ---------------------------------------------------------------------------
 
+_CSP_CDN_SCRIPT = "https://cdn.jsdelivr.net https://cdn.datatables.net https://code.jquery.com"
+_CSP_CDN_STYLE = "https://cdn.jsdelivr.net https://cdn.datatables.net"
+
+
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Varnostni HTTP headerji + Content-Security-Policy z enkratnim nonce-om za inline skripte.
+
+    Nonce je na voljo predlogam kot `request.state.csp_nonce`; vsak inline <script>
+    mora imeti `nonce="{{ request.state.csp_nonce }}"`, sicer ga brskalnik zavrne.
+    """
+
     async def dispatch(self, request: Request, call_next):
+        nonce = secrets.token_urlsafe(16)
+        request.state.csp_nonce = nonce
         response = await call_next(request)
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
-        response.headers["X-XSS-Protection"] = "1; mode=block"
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), camera=(), microphone=()"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            f"script-src 'self' 'nonce-{nonce}' {_CSP_CDN_SCRIPT}; "
+            f"style-src 'self' 'unsafe-inline' {_CSP_CDN_STYLE}; "
+            f"font-src 'self' {_CSP_CDN_STYLE}; "
+            "img-src 'self' data:; "
+            "connect-src 'self' https://cdn.datatables.net; "
+            "object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+        )
         return response
+
+
+def _db_iz_app(request: Request):
+    """Vrne (db, generator) iz get_db ob upoštevanju dependency_overrides (testi)."""
+    gen = request.app.dependency_overrides.get(get_db, get_db)()
+    return next(gen), gen
+
+
+class UserValidationMiddleware(BaseHTTPMiddleware):
+    """Vsako zahtevo prijavljenega uporabnika preveri proti bazi.
+
+    Izbrisan ali deaktiviran uporabnik je takoj odjavljen; spremenjena vloga
+    se takoj odrazi v seji (brez čakanja na ponovno prijavo).
+    """
+
+    _SKIP_PATHS_PREFIX = ("/static/",)
+
+    async def dispatch(self, request: Request, call_next):
+        seja = request.session.get("uporabnik")
+        if seja and not request.url.path.startswith(self._SKIP_PATHS_PREFIX):
+            db, gen = _db_iz_app(request)
+            try:
+                u = db.get(Uporabnik, seja.get("id"))
+            finally:
+                gen.close()
+            if not u or not u.aktiven:
+                request.session.clear()
+                return RedirectResponse(url="/login", status_code=302)
+            if u.vloga != seja.get("vloga") or u.uporabnisko_ime != seja.get("uporabnisko_ime"):
+                request.session["uporabnik"] = {**seja, "vloga": u.vloga, "uporabnisko_ime": u.uporabnisko_ime}
+        return await call_next(request)
 
 
 _UPLOAD_PATHS = {"/izvoz/uvozi", "/izvoz/uvozi-akos", "/izvoz/uvozi-placila"}
@@ -242,7 +316,14 @@ async def lifespan(app: FastAPI):
     _run_migrations()
     db = SessionLocal()
     try:
-        if db.query(Uporabnik).count() == 0:
+        admin_bo_ustvarjen = db.query(Uporabnik).count() == 0
+        preveri_produkcijske_nastavitve(
+            os.getenv("OKOLJE", "razvoj"),
+            os.getenv("SECRET_KEY", _PRIVZETI_SECRET_KEY),
+            os.getenv("ADMIN_GESLO", "admin123"),
+            admin_bo_ustvarjen,
+        )
+        if admin_bo_ustvarjen:
             admin_geslo = os.getenv("ADMIN_GESLO", "admin123")
             admin = Uporabnik(
                 uporabnisko_ime="admin",
@@ -272,8 +353,11 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Radio klub Člani", lifespan=lifespan)
 
-# Varnostni headers (pred session middleware)
+# Varnostni headers + CSP nonce (najbolj notranji)
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Validacija uporabnika proti bazi – ZNOTRAJ SessionMiddleware (dostop do request.session)
+app.add_middleware(UserValidationMiddleware)
 
 # Inaktivni timeout – mora biti ZNOTRAJ SessionMiddleware (dostop do request.session)
 app.add_middleware(InactivityTimeoutMiddleware)
@@ -281,7 +365,7 @@ app.add_middleware(InactivityTimeoutMiddleware)
 # Session z varnostnimi zastavicami
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SECRET_KEY", "radikoklub-dev-key-ZAMENJAJTE-v-produkciji"),
+    secret_key=os.getenv("SECRET_KEY", _PRIVZETI_SECRET_KEY),
     max_age=3600,          # 1 ura (prej 24 ur)
     same_site="strict",    # Zaščita pred CSRF
     https_only=False,      # Ostane False tudi pri HTTPS (HSTS na reverse proxy-u zadostuje)
@@ -349,6 +433,7 @@ async def login(
     db: Session = Depends(get_db),
 ) -> Response:
     ip = request.client.host if request.client else "unknown"
+    uporabnisko_ime = uporabnisko_ime.strip()[:_MAX_USERNAME_LEN]
 
     # Rate limiting
     if not check_rate_limit(ip, db, uporabnisko_ime):
@@ -368,8 +453,9 @@ async def login(
         .first()
     )
 
-    # Vedno preverimo geslo (preprečimo timing attack)
-    geslo_ok = preveri_geslo(geslo, u.geslo_hash) if u else False
+    # Bcrypt izvedemo tudi za neobstoječega uporabnika (izenačen čas odgovora –
+    # prepreči ugotavljanje obstoja uporabniškega imena prek merjenja časa)
+    geslo_ok = preveri_geslo(geslo, u.geslo_hash if u else DUMMY_GESLO_HASH) and u is not None
 
     if u and geslo_ok:
         if u.totp_aktiven and u.totp_skrivnost:
@@ -459,7 +545,8 @@ async def login_2fa(
         .first()
     )
 
-    if u and u.totp_skrivnost and pyotp.TOTP(u.totp_skrivnost).verify(koda.strip(), valid_window=1):
+    if preveri_totp(u, koda):
+        db.commit()  # shrani totp_zadnji_korak (replay zaščita)
         request.session.pop("_2fa_cakanje", None)
         request.session["uporabnik"] = {
             "id": u.id,

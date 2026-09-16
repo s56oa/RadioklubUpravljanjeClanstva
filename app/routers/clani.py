@@ -7,6 +7,7 @@ from fastapi import APIRouter, Request, Form, Depends, Query
 from fastapi.responses import RedirectResponse, HTMLResponse, Response, StreamingResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import or_, and_, func
+from starlette.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
 
 from ..database import get_db
@@ -290,13 +291,14 @@ async def iskanje_clanov(
         return JSONResponse({"error": "forbidden"}, status_code=403)
     if len(q.strip()) < 2:
         return JSONResponse([])
-    q_l = f"%{q.strip().lower()}%"
+    q_esc = q.strip().lower().replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    q_l = f"%{q_esc}%"
     clani = (
         db.query(Clan)
         .filter(or_(
-            func.lower(Clan.priimek + " " + Clan.ime).like(q_l),
-            func.lower(Clan.ime + " " + Clan.priimek).like(q_l),
-            func.lower(Clan.klicni_znak).like(q_l),
+            func.lower(Clan.priimek + " " + Clan.ime).like(q_l, escape="\\"),
+            func.lower(Clan.ime + " " + Clan.priimek).like(q_l, escape="\\"),
+            func.lower(Clan.klicni_znak).like(q_l, escape="\\"),
         ))
         .order_by(Clan.aktiven.desc(), Clan.priimek, Clan.ime)
         .limit(10)
@@ -617,7 +619,8 @@ async def posli_kartico(
     filename = kartica_filename(clan, clan_id, leto)
 
     try:
-        posli_email(
+        await run_in_threadpool(
+            posli_email,
             clan=clan,
             zadeva_predloga=predloga.zadeva,
             telo_predloga=predloga.telo_html,

@@ -9,7 +9,7 @@
       <li class="breadcrumb-item active">{{ skupina.ime }}</li>
     </ol>
   </nav>
-  {% if is_editor %}
+  {% if is_admin %}
   <button class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#modalIzbrisi">
     <i class="bi bi-trash me-1"></i>Izbriši skupino
   </button>
@@ -126,7 +126,7 @@
               <td class="text-center">
                 <form method="post" action="/skupine/{{ skupina.id }}/odstrani-clana/{{ c.id }}"
                       class="d-inline"
-                      onsubmit="return confirm('Odstrani {{ c.priimek }} {{ c.ime }} iz skupiny {{ skupina.ime }}?')">
+                      data-confirm="Odstrani {{ c.priimek }} {{ c.ime }} iz skupine {{ skupina.ime }}?">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                   <button type="submit" class="btn btn-outline-danger btn-sm py-0">
                     <i class="bi bi-person-dash"></i>
@@ -150,7 +150,7 @@
 </div>
 
 <!-- Modal brisanja skupine -->
-{% if is_editor %}
+{% if is_admin %}
 <div class="modal fade" id="modalIzbrisi" tabindex="-1">
   <div class="modal-dialog">
     <div class="modal-content">

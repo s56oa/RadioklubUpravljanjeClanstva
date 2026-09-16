@@ -85,6 +85,9 @@ async def dodaj(
     if not is_editor(user):
         return RedirectResponse(url=f"/clani/{clan_id}", status_code=302)
 
+    if not db.query(Clan.id).filter(Clan.id == clan_id).first():
+        return RedirectResponse(url="/clani", status_code=302)
+
     # Preveri ali že obstaja vnos za to leto
     obstoječa = (
         db.query(Clanarina)

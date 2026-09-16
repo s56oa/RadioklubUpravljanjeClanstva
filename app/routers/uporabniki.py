@@ -7,7 +7,7 @@ from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import Uporabnik, VLOGE
+from ..models import Uporabnik, ZaupljivaNaprava, VLOGE
 from ..auth import require_login, is_admin, hash_geslo, preveri_zahteve_gesla
 from ..csrf import get_csrf_token, csrf_protect
 from ..audit_log import log_akcija
@@ -188,6 +188,9 @@ async def reset_geslo(request: Request, uid: int, db: Session = Depends(get_db),
     novo_geslo = _generiraj_geslo(16)
     u.geslo_hash = hash_geslo(novo_geslo)
     db.commit()
+    ip = request.client.host if request.client else None
+    log_akcija(db, user.get("uporabnisko_ime") if user else None, "geslo_ponastavljeno",
+               f"Začasno geslo generirano za: {u.uporabnisko_ime}", ip=ip)
 
     # Shrani geslo enkrat v session – prikazano na naslednji strani, nato izbrisano
     request.session["zacasno_geslo"] = novo_geslo
@@ -214,6 +217,21 @@ async def uredi_shrani(
     u = db.query(Uporabnik).filter(Uporabnik.id == uid).first()
     if not u:
         return RedirectResponse(url="/uporabniki", status_code=302)
+
+    # Admin ne more spremeniti lastne vloge ali statusa (zaklep zadnjega admina)
+    if user.get("id") == uid and (vloga != u.vloga or (aktiven == "da") != u.aktiven):
+        return templates.TemplateResponse(
+            request,
+            "uporabniki/form.html",
+            {
+                "request": request,
+                "user": user,
+                "u": u,
+                "vloge": VLOGE,
+                "is_admin": True,
+                "napaka": "Lastne vloge ali statusa ne morete spremeniti. To lahko stori drug administrator.",
+            },
+        )
 
     if novo_geslo.strip():
         napaka_geslo = preveri_zahteve_gesla(novo_geslo)
@@ -257,6 +275,7 @@ async def izbrisi(request: Request, uid: int, db: Session = Depends(get_db), _cs
     u = db.query(Uporabnik).filter(Uporabnik.id == uid).first()
     if u:
         ime = u.uporabnisko_ime
+        db.query(ZaupljivaNaprava).filter(ZaupljivaNaprava.uporabnik_id == uid).delete()
         db.delete(u)
         db.commit()
         ip = request.client.host if request.client else None

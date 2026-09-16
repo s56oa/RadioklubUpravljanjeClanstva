@@ -33,12 +33,20 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     """Zaženi migracije z aktivno DB povezavo (online način)."""
     with engine.connect() as connection:
+        # Med migracijami (batch_alter_table = kopiranje tabel) morajo biti tuji ključi izklopljeni.
+        # Neposredno prek DBAPI povezave, da SQLAlchemy ne odpre implicitne transakcije
+        # (ta bi preprečila Alembicov begin_transaction() in commit ob koncu).
+        if connection.dialect.name == "sqlite":
+            connection.connection.execute("PRAGMA foreign_keys=OFF")
         context.configure(
             connection=connection,
             target_metadata=target_metadata,
         )
         with context.begin_transaction():
             context.run_migrations()
+        if connection.dialect.name == "sqlite":
+            # Povezava se vrne v pool aplikacije – povrni uveljavljanje tujih ključev
+            connection.connection.execute("PRAGMA foreign_keys=ON")
 
 
 if context.is_offline_mode():

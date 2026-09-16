@@ -9,7 +9,7 @@ services:
     volumes:
       - ./data:/app/data
     environment:
-      - SECRET_KEY=${SECRET_KEY:-zamenjajte-z-dolgim-nakljucnim-nizom}
+      - SECRET_KEY=${SECRET_KEY:?Nastavite SECRET_KEY v .env (python3 -c "import secrets; print(secrets.token_urlsafe(32))")}
       - ADMIN_GESLO=${ADMIN_GESLO:-admin123}
       - KLUB_IME=${KLUB_IME:-}
       - KLUB_OZNAKA=${KLUB_OZNAKA:-}

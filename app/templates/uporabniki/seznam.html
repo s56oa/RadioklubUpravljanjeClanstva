@@ -47,7 +47,7 @@
             </a>
             {% if u.id != user.id %}
             <form method="post" action="/uporabniki/{{ u.id }}/izbrisi" class="d-inline"
-                  onsubmit="return confirm('Izbrišete uporabnika {{ u.uporabnisko_ime }}?')">
+                  data-confirm="Izbrišete uporabnika {{ u.uporabnisko_ime }}?">
               <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
               <button type="submit" class="btn btn-outline-danger btn-sm">
                 <i class="bi bi-trash"></i>

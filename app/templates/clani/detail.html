@@ -287,7 +287,7 @@
                   <i class="bi bi-pencil"></i>
                 </button>
                 <form method="post" action="/clanarine/izbrisi/{{ c.id }}" class="d-inline"
-                      onsubmit="return confirm('Izbriši vnos za {{ leto }}?')">
+                      data-confirm="Izbriši vnos za {{ leto }}?">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                   <input type="hidden" name="clan_id" value="{{ clan.id }}">
                   <button type="submit" class="btn btn-outline-danger btn-sm py-0">
@@ -406,7 +406,7 @@
                   <i class="bi bi-pencil"></i>
                 </button>
                 <form method="post" action="/aktivnosti/izbrisi/{{ a.id }}" class="d-inline"
-                      onsubmit="return confirm('Izbriši ta vnos aktivnosti?')">
+                      data-confirm="Izbriši ta vnos aktivnosti?">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                   <input type="hidden" name="clan_id" value="{{ clan.id }}">
                   <button type="submit" class="btn btn-outline-danger btn-sm py-0">
@@ -524,7 +524,7 @@
                 </button>
                 {% if is_admin %}
                 <form method="post" action="/vloge/izbrisi/{{ v.id }}" class="d-inline"
-                      onsubmit="return confirm('Izbriši vlogo {{ v.naziv }}?')">
+                      data-confirm="Izbriši vlogo {{ v.naziv }}?">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
                   <input type="hidden" name="clan_id" value="{{ clan.id }}">
                   <button type="submit" class="btn btn-outline-danger btn-sm py-0">
@@ -726,7 +726,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 const letoZdaj = {{ leto_zdaj }};
 
 function filterTabela(tabelaId, n) {

@@ -1,6 +1,6 @@
 # Uporabniški priročnik – Radio klub Člani
 
-*Različica 1.26 | Datum: 2026-03-20*
+*Različica 1.29 | Datum: 2026-09-17*
 
 ---
 
@@ -270,7 +270,7 @@ V navigacijski vrstici kliknite **Skupine**. Prikaže se kartična stran z vsemi
 
 ### Urejanje in brisanje skupin
 
-Na kartici skupiine kliknite **Uredi skupino** za spremembo imena/opisa ali **Izbriši skupino** za trajno brisanje (samo urednik ali admin).
+Na kartici skupine kliknite **Uredi skupino** za spremembo imena/opisa (urednik ali admin) ali **Izbriši skupino** za trajno brisanje (samo admin).
 
 ### Dodajanje/odstranjevanje člana iz skupine
 
@@ -471,7 +471,9 @@ Prikazani so vsi uporabniki z vlogo in statusom (aktiven/neaktiven).
 
 ### Urejanje in deaktivacija
 
-Kliknite **Uredi** ob uporabniku. Spremenite ime, geslo ali vlogo. Polje *Aktiven* omogoča začasno blokado dostopa brez brisanja računa.
+Kliknite **Uredi** ob uporabniku. Spremenite ime, geslo ali vlogo. Polje *Aktiven* omogoča začasno blokado dostopa brez brisanja računa. Deaktivacija, brisanje ali sprememba vloge velja **takoj** – tudi če je uporabnik trenutno prijavljen.
+
+> Admin ne more spremeniti lastne vloge ali statusa (da ne ostane aplikacija brez administratorja); to lahko stori drug administrator.
 
 ### Ponastavitev gesla
 
@@ -900,4 +902,4 @@ Odkljukana polja se ne prikažejo na kartici (niti v PDF niti pri tisku).
 
 ---
 
-*Radio klub Člani – Upravljanje Članstva – različica 1.26 (2026-03-20)*
+*Radio klub Člani – Upravljanje Članstva – različica 1.29 (2026-09-17)*

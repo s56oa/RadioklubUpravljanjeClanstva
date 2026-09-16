@@ -47,7 +47,7 @@
       </div>
       <div class="col-md-2">
         <label class="form-label small mb-1">Leto čl.</label>
-        <select name="leto_placila" class="form-select form-select-sm" onchange="this.form.submit()">
+        <select name="leto_placila" class="form-select form-select-sm" data-autosubmit>
           {% for y in range(leto_zdaj, 2016, -1) %}
           <option value="{{ y }}" {% if leto == y %}selected{% endif %}>{{ y }}</option>
           {% endfor %}
@@ -152,11 +152,11 @@
             </td>
             <td>
               <span class="badge
-                {% if clan.tip_clanstva == 'Redno' %}bg-primary
-                {% elif clan.tip_clanstva == 'Družinsko' %}bg-info text-dark
+                {% if clan.tip_clanstva == 'Osebni' %}bg-primary
+                {% elif clan.tip_clanstva == 'Družinski' %}bg-info text-dark
                 {% elif clan.tip_clanstva == 'Simpatizerji' %}bg-secondary
-                {% elif clan.tip_clanstva == 'Mladi/dijaki/študenti' %}bg-success
-                {% elif clan.tip_clanstva == 'Invalidi' %}bg-warning text-dark
+                {% elif clan.tip_clanstva == 'Mladi' %}bg-success
+                {% elif clan.tip_clanstva == 'Invalid' %}bg-warning text-dark
                 {% else %}bg-light text-dark{% endif %}">
                 {{ clan.tip_clanstva }}
               </span>
@@ -239,7 +239,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // Izvozi v Excel gumb – nastavi href iz trenutnih URL parametrov
 var btnIzvoziExcel = document.getElementById('btnIzvoziExcel');
 if (btnIzvoziExcel) {

@@ -63,10 +63,10 @@
                 <i class="bi bi-pencil me-1"></i>Uredi
               </a>
               {% if not p.je_privzeta %}
-              <form method="post" action="/obvestila/{{ p.id }}/izbrisi" class="d-inline">
+              <form method="post" action="/obvestila/{{ p.id }}/izbrisi" class="d-inline"
+                    data-confirm="Res izbrisati predlogo '{{ p.naziv }}'?">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token(request) }}">
-                <button type="submit" class="btn btn-outline-danger btn-sm"
-                  onclick="return confirm('Res izbrisati predlogo \'{{ p.naziv }}\'?')">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
                   <i class="bi bi-trash me-1"></i>Izbriši
                 </button>
               </form>

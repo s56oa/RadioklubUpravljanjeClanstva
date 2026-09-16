@@ -134,7 +134,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // ── Izbira predloge ──────────────────────────────────────────────────────────
 const selPredloga = document.getElementById('selPredloga');
 selPredloga.addEventListener('change', function() {

@@ -158,7 +158,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // Pokaži/skrij polje za nosilci glede na tip članstva
 function posodobiNosilci() {
   const tip = document.getElementById('tipClanstva').value;

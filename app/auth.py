@@ -1,5 +1,9 @@
 import re
+import secrets
+from datetime import datetime, timedelta, timezone
+
 import bcrypt
+import pyotp
 from fastapi import Request
 from fastapi.responses import RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -28,6 +32,36 @@ def preveri_zahteve_gesla(geslo: str) -> str | None:
 
 def preveri_geslo(geslo: str, geslo_hash: str) -> bool:
     return bcrypt.checkpw(geslo.encode("utf-8"), geslo_hash.encode("utf-8"))
+
+
+# Naključen hash za primerjavo, ko uporabnik ne obstaja – izenači čas odgovora
+# (prepreči ugotavljanje obstoja uporabniškega imena prek merjenja časa).
+DUMMY_GESLO_HASH = hash_geslo(secrets.token_urlsafe(24))
+
+_TOTP_KORAK_SEKUND = 30
+
+
+def preveri_totp(uporabnik, koda: str, zdaj: datetime | None = None) -> bool:
+    """Preveri TOTP kodo (okno ±1 korak) in prepreči ponovno uporabo iste kode.
+
+    Ob uspehu zapiše uporabljeni časovni korak v `uporabnik.totp_zadnji_korak`
+    (klicatelj mora narediti commit). Koda iz koraka <= zadnjega je zavrnjena.
+    """
+    if not uporabnik or not uporabnik.totp_skrivnost:
+        return False
+    koda = (koda or "").strip().replace(" ", "")
+    totp = pyotp.TOTP(uporabnik.totp_skrivnost)
+    zdaj = zdaj or datetime.now(timezone.utc)
+    for odmik in (0, -1, 1):
+        cas = zdaj + timedelta(seconds=odmik * _TOTP_KORAK_SEKUND)
+        if totp.verify(koda, for_time=cas, valid_window=0):
+            korak = totp.timecode(cas)
+            zadnji = uporabnik.totp_zadnji_korak
+            if zadnji is not None and korak <= zadnji:
+                return False
+            uporabnik.totp_zadnji_korak = korak
+            return True
+    return False
 
 
 def get_user(request: Request) -> dict | None:

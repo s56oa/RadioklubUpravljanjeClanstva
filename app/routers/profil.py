@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from ..database import get_db
 from ..models import Uporabnik, ZaupljivaNaprava
-from ..auth import require_login, hash_geslo, preveri_geslo, preveri_zahteve_gesla
+from ..auth import require_login, hash_geslo, preveri_geslo, preveri_zahteve_gesla, preveri_totp
 from ..csrf import get_csrf_token, csrf_protect
 from ..audit_log import log_akcija
 from ..rate_limit import check_rate_limit, record_failed_attempt
@@ -208,9 +208,12 @@ async def tfa_potrdi(
              "skrivnost": skrivnost, "napaka": "Preveč neuspešnih poskusov. Počakajte 15 minut."},
         )
 
-    if pyotp.TOTP(skrivnost).verify(koda.strip(), valid_window=1):
+    totp = pyotp.TOTP(skrivnost)
+    if totp.verify(koda.strip().replace(" ", ""), valid_window=1):
         u.totp_skrivnost = skrivnost
         u.totp_aktiven = True
+        # Koda, uporabljena za aktivacijo, ne sme biti ponovno uporabna za prijavo
+        u.totp_zadnji_korak = totp.timecode(datetime.now(timezone.utc)) + 1
         db.commit()
         request.session.pop("_2fa_nova_skrivnost", None)
         log_akcija(db, user["ime"], "2fa_vklop",
@@ -261,9 +264,10 @@ async def tfa_onemogoči(
              "napaka_2fa": "Preveč neuspešnih poskusov. Počakajte 15 minut.", "zaupljive_naprave": []},
         )
 
-    if u.totp_skrivnost and pyotp.TOTP(u.totp_skrivnost).verify(koda.strip(), valid_window=1):
+    if preveri_totp(u, koda):
         u.totp_skrivnost = None
         u.totp_aktiven = False
+        u.totp_zadnji_korak = None
         # Ob onemogočitvi 2FA izbrišemo tudi vse zaupljive naprave
         db.query(ZaupljivaNaprava).filter(ZaupljivaNaprava.uporabnik_id == u.id).delete()
         db.commit()

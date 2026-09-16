@@ -1,7 +1,9 @@
+import json
 import re
 from datetime import date
 
 from app.auth import hash_geslo
+from app.main import APP_VERSION
 from app.models import Uporabnik, Clan, Clanarina, Aktivnost
 
 
@@ -73,7 +75,7 @@ def test_verzijska_znacka_vsebuje_verzijo(client, db):
     _login(client, db)
     resp = client.get("/clani")
     assert resp.status_code == 200
-    assert "1.27" in resp.text
+    assert f"v{APP_VERSION}" in resp.text
 
 
 def test_get_clani_brez_seje(client):
@@ -693,7 +695,10 @@ def test_dashboard_z_placili_in_urami(client, db):
 
     resp = client.get("/dashboard")
     assert resp.status_code == 200
-    assert "DashTest" not in resp.text or True  # dashboard ne prikaže imen, samo statistike
+    placila = json.loads(re.search(r"const placilaData = (\[.*?\]);", resp.text).group(1))
+    ure = json.loads(re.search(r"const ureData = (\[.*?\]);", resp.text).group(1))
+    assert placila[-2:] == [1, 1]
+    assert ure[-2:] == [3.0, 5.5]
 
 
 # ---------------------------------------------------------------------------

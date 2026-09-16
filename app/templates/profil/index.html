@@ -198,7 +198,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 // Sproti preveri ali se gesli ujemata
 const g1 = document.getElementById('novoGeslo');
 const g2 = document.getElementById('novoGeslo2');

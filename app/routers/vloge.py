@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from ..database import get_db
-from ..models import ClanVloga
+from ..models import Clan, ClanVloga
 from ..auth import require_login, is_editor, is_admin
 from ..csrf import csrf_protect
 from ..audit_log import log_akcija
@@ -33,6 +33,8 @@ async def dodaj(
     naziv = naziv.strip()
     if not naziv or not datum_od:
         return RedirectResponse(url=f"/clani/{clan_id}#vloge", status_code=302)
+    if not db.query(Clan.id).filter(Clan.id == clan_id).first():
+        return RedirectResponse(url="/clani", status_code=302)
 
     try:
         datum_od_parsed = date.fromisoformat(datum_od)

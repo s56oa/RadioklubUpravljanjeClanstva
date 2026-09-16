@@ -1,12 +1,21 @@
-import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
-from fastapi.testclient import TestClient
+import os
+import tempfile
 
-from app.models import Base
-from app.database import get_db
-from app.main import app
+# Lifespan aplikacije (migracije, seed admin/predlog, čiščenje data/tmp) teče nad
+# realnim engine-om iz app.database – testna baza mora biti nastavljena PRED uvozom app.
+_TEST_DIR = tempfile.mkdtemp(prefix="clanstvo-test-")
+os.environ["DATABASE_URL"] = f"sqlite:///{os.path.join(_TEST_DIR, 'test.db')}"
+os.environ.setdefault("OKOLJE", "razvoj")
+
+import pytest  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.models import Base  # noqa: E402
+from app.database import get_db  # noqa: E402
+from app.main import app  # noqa: E402
 
 
 @pytest.fixture(scope="function")

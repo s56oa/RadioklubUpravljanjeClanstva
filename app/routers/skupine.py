@@ -7,6 +7,7 @@ from ..database import get_db
 from ..models import Clan, Skupina
 from ..auth import require_login, is_editor, is_admin
 from ..csrf import get_csrf_token, csrf_protect
+from ..audit_log import log_akcija
 
 router = APIRouter(prefix="/skupine")
 templates = Jinja2Templates(directory="app/templates")
@@ -71,6 +72,8 @@ async def nova_shrani(
     db.add(s)
     db.commit()
     db.refresh(s)
+    log_akcija(db, user.get("uporabnisko_ime"), "skupina_dodana", f"{s.ime} (ID {s.id})",
+               ip=request.client.host if request.client else None)
     return RedirectResponse(url=f"/skupine/{s.id}", status_code=302)
 
 
@@ -130,6 +133,8 @@ async def uredi(
     skupina.ime = ime.strip()
     skupina.opis = opis.strip() or None
     db.commit()
+    log_akcija(db, user.get("uporabnisko_ime"), "skupina_urejena", f"{skupina.ime} (ID {skupid})",
+               ip=request.client.host if request.client else None)
     return RedirectResponse(url=f"/skupine/{skupid}", status_code=302)
 
 
@@ -143,13 +148,16 @@ async def izbrisi(
     user, redirect = require_login(request)
     if redirect:
         return redirect
-    if not is_editor(user):
+    if not is_admin(user):
         return RedirectResponse(url=f"/skupine/{skupid}", status_code=302)
 
     skupina = db.query(Skupina).filter(Skupina.id == skupid).first()
     if skupina:
+        opis = f"{skupina.ime} (ID {skupid}, {len(skupina.clani)} članov)"
         db.delete(skupina)
         db.commit()
+        log_akcija(db, user.get("uporabnisko_ime"), "skupina_izbrisana", opis,
+                   ip=request.client.host if request.client else None)
     return RedirectResponse(url="/skupine", status_code=302)
 
 
@@ -172,6 +180,9 @@ async def dodaj_clana(
     if skupina and clan and clan not in skupina.clani:
         skupina.clani.append(clan)
         db.commit()
+        log_akcija(db, user.get("uporabnisko_ime"), "skupina_clan_dodan",
+                   f"{clan.priimek} {clan.ime} → {skupina.ime}",
+                   ip=request.client.host if request.client else None)
     return RedirectResponse(url=f"/skupine/{skupid}", status_code=302)
 
 
@@ -194,4 +205,7 @@ async def odstrani_clana(
     if skupina and clan and clan in skupina.clani:
         skupina.clani.remove(clan)
         db.commit()
+        log_akcija(db, user.get("uporabnisko_ime"), "skupina_clan_odstranjen",
+                   f"{clan.priimek} {clan.ime} ← {skupina.ime}",
+                   ip=request.client.host if request.client else None)
     return RedirectResponse(url=f"/skupine/{skupid}", status_code=302)

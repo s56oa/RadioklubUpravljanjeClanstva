@@ -1,6 +1,6 @@
 # Tehnična dokumentacija – Radio klub Člani
 
-*Različica 1.26 | Datum: 2026-03-20*
+*Različica 1.29 | Datum: 2026-09-17*
 
 ---
 
@@ -53,11 +53,12 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 
 | Komponenta | Tehnologija | Verzija |
 |------------|-------------|---------|
-| Backend | Python + FastAPI | 3.12 / 0.135 |
-| ASGI strežnik | uvicorn[standard] | 0.32 |
+| Backend | Python + FastAPI | 3.12 / 0.141 |
+| ASGI strežnik | uvicorn[standard] | 0.53 |
 | Baza podatkov | SQLite prek SQLAlchemy | 2.0 |
 | Predloge | Jinja2 | 3.1 |
-| Avtentikacija | SessionMiddleware + bcrypt | — |
+| Avtentikacija | SessionMiddleware + bcrypt; `UserValidationMiddleware` (preverjanje uporabnika proti bazi ob vsaki zahtevi) | — |
+| Varnostni headerji | `SecurityHeadersMiddleware`: CSP z nonce-om, SRI za CDN vire | — |
 | 2FA (TOTP) | pyotp + segno (SVG QR) | 2.9 / 1.6 |
 | Zaupljive naprave | SHA-256 token v SQLite, httponly cookie 30 dni | — |
 | IP resolving | uvicorn ProxyHeadersMiddleware (X-Forwarded-For) | — |
@@ -75,7 +76,7 @@ FastAPI (uvicorn)       ← Python 3.12, port 8000
 UpravljanjeClanstva/
 ├── app/
 │   ├── main.py           – FastAPI app, middleware, login/logout/2FA, _run_migrations(), _nastavi_logging()
-│   ├── database.py       – SQLite engine, get_db()
+│   ├── database.py       – SQLite engine (PRAGMA foreign_keys=ON), get_db(), sqlite_pot()
 │   ├── models.py         – SQLAlchemy modeli (vključno ZaupljivaNaprava, EmailPredloga)
 │   ├── auth.py           – gesla, vloge, zaščita endpointov
 │   ├── config.py         – branje nastavitev iz baze
@@ -99,7 +100,9 @@ UpravljanjeClanstva/
 │       ├── 005_email_predloge.py
 │       ├── 006_indeksi.py
 │       ├── 007_email_predloge_qr.py
-│       └── 008_email_predloge_kartica.py
+│       ├── 008_email_predloge_kartica.py
+│       ├── 009_login_poskusi_username.py
+│       └── 010_fk_sirote_totp_korak.py
 ├── data/                 – SQLite baza + dnevnik (Docker volume, ni v image-u)
 │   ├── clanstvo.db
 │   └── app.log           – rotating log (5 MB × 5)
@@ -459,8 +462,8 @@ cp .env.example .env
 
 | Spremenljivka | Obvezno | Opis | Primer |
 |--------------|---------|------|--------|
-| `SECRET_KEY` | **DA** | Ključ za podpisovanje session piškotkov. Mora biti dolg (32+ znakov), naključen, edinstven. | `openssl rand -hex 32` |
-| `ADMIN_GESLO` | **DA** | Geslo privzetega admin računa ob **prvi** namestitvi. Po namestitvi zamenjajte prek UI. | `MojeGeslo123!XY` |
+| `SECRET_KEY` | **DA** | Ključ za podpisovanje session piškotkov. Mora biti dolg (32+ znakov), naključen, edinstven. V `OKOLJE=produkcija` se aplikacija s privzetim ali krajšim ključem **ne zažene**. | `openssl rand -hex 32` |
+| `ADMIN_GESLO` | **DA** | Geslo privzetega admin računa ob **prvi** namestitvi. V produkciji se aplikacija ob prvem zagonu s privzetim geslom ne zažene. Po namestitvi zamenjajte prek UI. | `MojeGeslo123!XY` |
 | `OKOLJE` | ne | `razvoj` ali `produkcija`. V produkciji se gesla ne izpisujejo v loge. | `produkcija` |
 | `KLUB_IME` | ne | Polno ime kluba. Nastavljivo tudi prek UI (Nastavitve). | `Radio klub Primer` |
 | `KLUB_OZNAKA` | ne | Klicni znak kluba. Prikazuje se v navigacijski vrstici. Nastavljivo tudi prek UI. | `S5XYZ` |
@@ -1140,8 +1143,19 @@ alembic_command.upgrade(cfg, "head")
 | `006` | DB indeksi: `ix_clani_aktiven`, `ix_clanarine_leto`, `ix_aktivnosti_leto` |
 | `007` | Novo polje `email_predloge.vkljuci_qr` (Boolean, server_default=0) – per-template konfiguracija QR kode |
 | `008` | Novo polje `email_predloge.prilozi_kartico` (Boolean, server_default=0) – priložitev članske kartice PDF |
+| `009` | Novo polje `login_poskusi.uporabnisko_ime` + indeks `ix_login_poskusi_user_cas` (per-username rate limiting) |
+| `010` | Čiščenje osirotelih vrstic (clanarine, aktivnosti, clan_vloge, clan_skupina, zaupljive_naprave brez starša) pred vklopom `PRAGMA foreign_keys=ON`; novo polje `uporabniki.totp_zadnji_korak` (TOTP replay zaščita) |
 
-**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`008`. **Podatki se ohranijo.**
+**Obstoječe namestitve** (brez Alembic zgodovine) se ob zagonu samodejno označijo kot `001`, nato se aplicirajo `002`–`010`. **Podatki se ohranijo.**
+
+**Tuji ključi (od v1.29):** `app/database.py` ob vsaki povezavi izvede `PRAGMA foreign_keys=ON`. Med migracijami `alembic/env.py` uveljavljanje izklopi (batch operacije kopirajo tabele) in ga po koncu povrne. Test `test_migracije_skladne_z_modeli` zagotavlja, da shema po `alembic upgrade head` ustreza `models.py`.
+
+### Middleware sklad (vrstni red izvajanja zahteve)
+
+`ProxyHeadersMiddleware` → `KlubContextMiddleware` → `ContentSizeLimitMiddleware` → `SessionMiddleware` → `InactivityTimeoutMiddleware` → `UserValidationMiddleware` → `SecurityHeadersMiddleware` → router.
+
+- **`UserValidationMiddleware`** (v1.29): za vsako zahtevo prijavljenega uporabnika prebere `uporabniki` po primarnem ključu; deaktiviran ali izbrisan uporabnik je takoj odjavljen (302 `/login`), spremenjena vloga se takoj zapiše v sejo. Uporablja `get_db` z upoštevanjem `dependency_overrides` (testi).
+- **`SecurityHeadersMiddleware`** (v1.29 razširjen): generira enkratni nonce (`request.state.csp_nonce`) in doda `Content-Security-Policy`: `default-src 'self'; script-src 'self' 'nonce-…' + CDN; style-src 'self' 'unsafe-inline' + CDN; img-src 'self' data:; connect-src 'self' https://cdn.datatables.net; object-src 'none'; frame-ancestors 'none'; form-action 'self'`. Vsak inline `<script>` v predlogah mora imeti `nonce="{{ request.state.csp_nonce }}"`; inline `on*=""` atributi niso dovoljeni – uporabljajo se `data-confirm`, `data-autosubmit` in `data-print` z globalnimi handlerji v `base.html`. Vsi CDN viri imajo SRI (`integrity="sha384-…"`).
 
 ### KlubContextMiddleware
 
@@ -1195,8 +1209,8 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 
 ### Kritično pred prvim zagonom
 
-1. **Nastaviti `SECRET_KEY`** v `.env` – brez tega so session piškotki podpisani s predvidljivim nizom.
-2. **Nastaviti `ADMIN_GESLO`** v `.env` – privzeto geslo `admin123` je splošno znano.
+1. **Nastaviti `SECRET_KEY`** v `.env` – brez tega so session piškotki podpisani s predvidljivim nizom. V produkciji se aplikacija brez njega ne zažene (v1.29).
+2. **Nastaviti `ADMIN_GESLO`** v `.env` – privzeto geslo `admin123` je splošno znano. V produkciji se aplikacija ob prvem zagonu brez njega ne zažene (v1.29).
 3. **Po prijavi takoj zamenjati geslo** prek Admin → Moj profil.
 
 ### Implementirani ukrepi
@@ -1244,6 +1258,15 @@ Podroben varnostni pregled je v datoteki `Varnost.md`.
 | Audit log za profil operacije (geslo, 2FA vklop/izklop, odjava naprav) | v1.25 |
 | Audit log za spremembe nastavitev kluba | v1.25 |
 | Nadgradnja varnostnih odvisnosti: jinja2 3.1.6 (sandbox bypass), starlette 0.52.1 (Range DoS + multipart DoS), python-multipart 0.0.22 (path traversal), FastAPI 0.135.1 | v1.26 |
+| Odjava POST + CSRF; rate limiting na profil operacijah; per-username lockout (`login_poskusi.uporabnisko_ime`) | v1.27 |
+| Shranjeni XSS v JS atributih odpravljen (`data-confirm` + globalni handler namesto `onsubmit="confirm('…{{ x }}')"`) | v1.29 |
+| Content-Security-Policy z nonce-om + SRI za CDN vire | v1.29 |
+| `UserValidationMiddleware` – deaktiviran/izbrisan uporabnik takoj odjavljen, sprememba vloge takoj velja | v1.29 |
+| Produkcija zavrne privzeti `SECRET_KEY` / `ADMIN_GESLO` ob zagonu | v1.29 |
+| TOTP replay zaščita (`totp_zadnji_korak`); bcrypt tudi za neobstoječega uporabnika | v1.29 |
+| SMTP `timeout=30` + `run_in_threadpool`; admin ne more spremeniti lastne vloge/statusa | v1.29 |
+| `PRAGMA foreign_keys=ON` + Alembic 010; brisanje skupin samo admin; razširjen audit log | v1.29 |
+| Nadgradnja odvisnosti: fastapi 0.141.1, starlette 1.6.0, python-multipart 0.0.32, uvicorn 0.53.0 | v1.29 |
 
 ### Varnostno vzdrževanje
 
@@ -1281,11 +1304,12 @@ pytest tests/ -v
 | `test_uvoz_akos.py` | brez seje, predogled z ujemanjem, brez ujemanja, napačna datoteka, potrditev posodobi datum, brez KZ, star datum (>10 let), zaščita pred znižanjem | 12 |
 | `test_uvoz_placila.py` | _parse_referenca (veljaven/vodilne ničle/lowercase/brez vrednosti/napačen format/brez presledka), predogled po referenci/imenu/prioriteta/ES-številka/neobstoječ član/brez datuma, uvoz workbook (referenca, backward compat) | 14 |
 | `test_kartica.py` | PDF download (application/pdf, %PDF header), HTML prikaz (ime člana), brez pravic (bralec → redirect), pošlji brez emaila (flash opozorilo), pošlji mock SMTP (audit log kartica_poslana) | 5 |
-| **Skupaj** | | **159** |
+| `test_v129.py` | XSS v JS atributih (vloge, skupine, predloge, uporabniki), brez inline handlerjev v predlogah, CSP nonce + SRI, validacija sej (deaktiviran/izbrisan/sprememba vloge), admin lastna vloga, audit log (reset gesla, skupine, ZRS/uvoz nastavitve), brisanje skupin samo admin, PRAGMA foreign_keys + neobstoječ clan_id, izbris uporabnika z napravo, kaskadni izbris člana, migracije skladne z modeli, migracija 010 čisti sirote, ZRS ne-ASCII oznaka + privzeto leto, AKOS URL-kodiranje, LIKE escape, backup DB, značke tipov, bcrypt za neobstoječega, omejitev dolžine imena, TOTP replay, produkcijske zahteve, SMTP timeout, FK po migracijah | 39 |
+| **Skupaj** | | **205** |
 
 ### Testna infrastruktura
 
-`tests/conftest.py` ustvari:
+`tests/conftest.py` pred uvozom aplikacije nastavi `DATABASE_URL` na začasno datoteko (lifespan – migracije, seed – zato nikoli ne teče nad `data/clanstvo.db`) in ustvari:
 - `engine` fixture – SQLite `/:memory:` z `StaticPool` (deljeno med sesjami)
 - `db` fixture – SQLAlchemy seja na testnem engine
 - `client` fixture – FastAPI `TestClient` z dependency override za `get_db`
@@ -1294,4 +1318,4 @@ Testi ne pišejo v `data/clanstvo.db`. Vsak test dobi svežo bazo.
 
 ---
 
-*Radio klub Člani – tehnična dokumentacija, različica 1.26*
+*Radio klub Člani – tehnična dokumentacija, različica 1.29*

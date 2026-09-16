@@ -93,7 +93,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ request.state.csp_nonce }}">
 $(document).ready(function() {
   $('#tabela-clanarin').DataTable({
     responsive: true,

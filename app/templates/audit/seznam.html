@@ -20,7 +20,7 @@
       <span class="text-white-50 small ms-2">(zadnjih 500 vnosov)</span>
     </span>
     <form method="get" class="d-flex gap-2 align-items-center mb-0">
-      <select name="akcija" class="form-select form-select-sm" style="width:auto" onchange="this.form.submit()">
+      <select name="akcija" class="form-select form-select-sm" style="width:auto" data-autosubmit>
         <option value="">– Vse akcije –</option>
         {% for a in akcije %}
         <option value="{{ a }}" {% if a == akcija %}selected{% endif %}>{{ a }}</option>

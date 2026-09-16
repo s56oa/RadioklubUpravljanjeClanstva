@@ -6,6 +6,7 @@ from fastapi import APIRouter, Request, Form, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse, Response
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from ..database import get_db
 from ..models import Clan, Clanarina, EmailPredloga
@@ -306,6 +307,7 @@ async def posli_post(
 
     poslano = 0
     preskoceno = 0
+    ip = request.client.host if request.client else None
 
     qr = predloga.vkljuci_qr
     prilozi_kartico = predloga.prilozi_kartico
@@ -327,11 +329,12 @@ async def posli_post(
         clan = db.query(Clan).filter(Clan.id == int(clan_id)).first()
         if clan and clan.elektronska_posta and "@" in clan.elektronska_posta:
             try:
-                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr,
-                            priponke=_priponke_za_clana(clan))
+                # SMTP je sinhron – v threadpoolu, da ne blokira event loopa
+                await run_in_threadpool(posli_email, clan, zadeva, telo_html, leto, smtp_nas, db,
+                                        vkljuci_qr=qr, priponke=_priponke_za_clana(clan))
                 poslano = 1
                 log_akcija(db, user.get("uporabnisko_ime"), "email_poslan",
-                           f"Email poslan: {clan.priimek} {clan.ime} ({clan.elektronska_posta}), leto {leto}")
+                           f"Email poslan: {clan.priimek} {clan.ime} ({clan.elektronska_posta}), leto {leto}", ip=ip)
             except Exception as e:
                 logger.error(f"Napaka pri pošiljanju emaila za {clan.elektronska_posta}: {e}")
                 request.session["obv_flash"] = "Napaka pri pošiljanju e-pošte. Preverite SMTP nastavitve (podrobnosti v sistemskem dnevniku)."
@@ -405,8 +408,8 @@ async def posli_post(
                 preskoceno += 1
                 continue
             try:
-                posli_email(clan, zadeva, telo_html, leto, smtp_nas, db, vkljuci_qr=qr,
-                            priponke=_priponke_za_clana(clan))
+                await run_in_threadpool(posli_email, clan, zadeva, telo_html, leto, smtp_nas, db,
+                                        vkljuci_qr=qr, priponke=_priponke_za_clana(clan))
                 poslano += 1
             except Exception as e:
                 logger.error(f"Napaka pri pošiljanju emaila za {clan.elektronska_posta}: {e}")
@@ -415,10 +418,10 @@ async def posli_post(
 
         if napake:
             log_akcija(db, user.get("uporabnisko_ime"), "email_bulk_napaka",
-                       f"Napake pri bulk pošiljanju: {', '.join(napake[:5])}")
+                       f"Napake pri bulk pošiljanju: {', '.join(napake[:5])}", ip=ip)
 
         log_akcija(db, user.get("uporabnisko_ime"), "email_bulk_poslan",
-                   f"Bulk email ({bulk_filter}): {poslano} poslanih, {preskoceno} preskočenih, leto {leto}")
+                   f"Bulk email ({bulk_filter}): {poslano} poslanih, {preskoceno} preskočenih, leto {leto}", ip=ip)
 
     request.session["obv_rezultat_poslano"] = poslano
     request.session["obv_rezultat_preskoceno"] = preskoceno

@@ -41,13 +41,13 @@ VLOGE = ["admin", "urednik", "bralec"]
 class Clan(Base):
     __tablename__ = "clani"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     priimek = Column(String, nullable=False)
     ime = Column(String, nullable=False)
     klicni_znak = Column(String, nullable=True, index=True)
     naslov_ulica = Column(String, nullable=True)
     naslov_posta = Column(String, nullable=True)
-    tip_clanstva = Column(String, nullable=False, default="Redno")
+    tip_clanstva = Column(String, nullable=False, default="Osebni")
     klicni_znak_nosilci = Column(String, nullable=True)
     operaterski_razred = Column(String, nullable=True)
     mobilni_telefon = Column(String, nullable=True)
@@ -74,7 +74,7 @@ class Clan(Base):
 class Clanarina(Base):
     __tablename__ = "clanarine"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     clan_id = Column(Integer, ForeignKey("clani.id"), nullable=False)
     leto = Column(Integer, nullable=False, index=True)
     datum_placila = Column(Date, nullable=True)
@@ -87,7 +87,7 @@ class Clanarina(Base):
 class Aktivnost(Base):
     __tablename__ = "aktivnosti"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     clan_id = Column(Integer, ForeignKey("clani.id"), nullable=False)
     leto = Column(Integer, nullable=False, index=True)
     datum = Column(Date, nullable=True)
@@ -100,7 +100,7 @@ class Aktivnost(Base):
 class Skupina(Base):
     __tablename__ = "skupine"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     ime = Column(String, nullable=False)
     opis = Column(String, nullable=True)
 
@@ -110,7 +110,7 @@ class Skupina(Base):
 class Uporabnik(Base):
     __tablename__ = "uporabniki"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     uporabnisko_ime = Column(String, unique=True, nullable=False, index=True)
     geslo_hash = Column(String, nullable=False)
     vloga = Column(String, nullable=False, default="bralec")
@@ -118,6 +118,7 @@ class Uporabnik(Base):
     aktiven = Column(Boolean, default=True, nullable=False)
     totp_skrivnost = Column(String, nullable=True)
     totp_aktiven = Column(Boolean, default=False, nullable=False)
+    totp_zadnji_korak = Column(Integer, nullable=True)  # zadnji uporabljen TOTP časovni korak (replay zaščita)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -132,7 +133,7 @@ class Nastavitev(Base):
 class AuditLog(Base):
     __tablename__ = "audit_log"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     cas = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     uporabnik = Column(String, nullable=True)
     ip = Column(String, nullable=True)
@@ -143,7 +144,7 @@ class AuditLog(Base):
 class ZaupljivaNaprava(Base):
     __tablename__ = "zaupljive_naprave"
 
-    id = Column(Integer, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
     uporabnik_id = Column(Integer, ForeignKey("uporabniki.id"), nullable=False, index=True)
     token_hash = Column(String, nullable=False)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -171,7 +172,7 @@ class ClanVloga(Base):
     __tablename__ = "clan_vloge"
 
     id = Column(Integer, primary_key=True, index=True)
-    clan_id = Column(Integer, ForeignKey("clani.id"), nullable=False)
+    clan_id = Column(Integer, ForeignKey("clani.id", ondelete="CASCADE"), nullable=False, index=True)
     naziv = Column(String, nullable=False)
     datum_od = Column(Date, nullable=False)
     datum_do = Column(Date, nullable=True)
