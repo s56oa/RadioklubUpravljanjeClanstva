@@ -133,7 +133,7 @@ def test_csp_header_z_nonce_na_vseh_inline_skriptah(client, db):
         assert m, f"{url}: CSP header brez nonce"
         nonce = m.group(1)
         assert "'unsafe-inline'" not in csp.split("script-src")[1].split(";")[0]
-        inline = re.findall(r"<script(?![^>]*\ssrc=)[^>]*>", resp.text)
+        inline = re.findall(r"<script(?![^>]*\ssrc=)[^>]*>", resp.text, re.IGNORECASE)
         assert inline, f"{url}: pričakovan vsaj en inline script"
         for tag in inline:
             assert f'nonce="{nonce}"' in tag, f"{url}: inline script brez nonce: {tag}"
